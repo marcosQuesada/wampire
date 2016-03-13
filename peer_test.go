@@ -51,6 +51,11 @@ func (p *fakePeer) Send(m Message) {
 func (p *fakePeer) Receive() chan Message {
 	return p.rcv
 }
+func (p *fakePeer) Request(Message) Message{
+	return &Result{
+
+	}
+}
 
 func (p *fakePeer) ID() PeerID {
 	return p.id

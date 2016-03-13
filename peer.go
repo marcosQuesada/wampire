@@ -17,6 +17,7 @@ const (
 
 type Peer interface {
 	Send(Message)
+	Request(Message) Message
 	Receive() chan Message
 	ID() PeerID
 	Terminate()
@@ -75,6 +76,11 @@ func (p *webSocketPeer) Receive() chan Message {
 	return p.receive
 }
 
+func (p *webSocketPeer) Request(msg Message)  Message {
+	return &Error{
+
+	}
+}
 func (p *webSocketPeer) ID() PeerID {
 	return p.id
 }

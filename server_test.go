@@ -56,7 +56,10 @@ func NewTestClient(host string) *testClient{
 func (c *testClient)readLoop() {
 	for {
 		select {
-		case msg := <- c.client.Receive():
+		case msg, open := <- c.client.Receive():
+			if !open {
+				return
+			}
 			log.Print("Client Receive msg", msg.MsgType())
 
 			c.rsp <- msg

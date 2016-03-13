@@ -192,7 +192,7 @@ func (msg *Publish) MsgType() MsgType {
 
 // [PUBLISHED, PUBLISH.Request|id, Publication|id]
 type Published struct {
-	Request     ID
+	Request ID
 }
 
 func (msg *Published) MsgType() MsgType {
@@ -239,20 +239,13 @@ func (msg *Unsubscribed) MsgType() MsgType {
 	return UNSUBSCRIBED
 }
 
-// CallResult represents the result of a CALL.
-type CallResult struct {
-	Args   []interface{}
-	Kwargs map[string]interface{}
-	Error  URI
-}
-
 // [CALL, Request|id, Options|dict, Procedure|uri]
 // [CALL, Request|id, Options|dict, Procedure|uri, Arguments|list]
 // [CALL, Request|id, Options|dict, Procedure|uri, Arguments|list, ArgumentsKw|dict]
 type Call struct {
 	Request     ID
-	Options     map[string]interface{}
 	Procedure   URI
+	Options     map[string]interface{}
 	Arguments   []interface{}          `wamp:"omitempty"`
 	ArgumentsKw map[string]interface{} `wamp:"omitempty"`
 }
@@ -267,6 +260,7 @@ type Result struct {
 	Details     map[string]interface{}
 	Arguments   []interface{}          `wamp:"omitempty"`
 	ArgumentsKw map[string]interface{} `wamp:"omitempty"`
+	Error       URI
 }
 
 func (msg *Result) MsgType() MsgType {

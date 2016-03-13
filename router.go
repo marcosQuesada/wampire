@@ -81,21 +81,36 @@ func (r *Router) handleSession(p Peer) {
 				log.Println("Closing handled session from closed receive chan")
 				return
 			}
+			//Check if received message is on listeners register
 
+			var response Message
 			switch msg.(type) {
 			case *Publish:
 				log.Println("Received Publish")
-				response := r.broker.Publish(msg, p)
-				p.Send(response)
+				response = r.broker.Publish(msg, p)
 			case *Subscribe:
 				log.Println("Received Subscribe")
-				response := r.broker.Subscribe(msg, p)
-				p.Send(response)
+				response = r.broker.Subscribe(msg, p)
+			case *Unsubscribe:
+				log.Println("Received Subscribe")
+				response = r.broker.UnSubscribe(msg, p)
+			case *Call:
+				log.Println("Received Call")
+				response = r.dealer.Call(msg, p)
+			case *Register:
+				log.Println("Received Call")
+				response = r.dealer.RegisterExternalHandler(msg, p)
+			case *Unregister:
+				log.Println("Received Call")
+				response = r.dealer.UnregisterExternalHandler(msg, p)
 			default:
 				log.Println("Unhandled message")
-				p.Send(&Error{Request: ID("123")})
+				response = &Error{
+					Request: ID("123"),
+					Error: URI("Unhandled message"),
+				}
 			}
-
+			p.Send(response)
 		case <-r.exit:
 			log.Println("Shutting down session handler from peer ", p.ID())
 			return
