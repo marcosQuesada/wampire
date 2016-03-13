@@ -1,4 +1,4 @@
-package wamp
+package wampire
 
 import (
 	"log"
@@ -41,10 +41,9 @@ func (b *defaultBroker) Subscribe(msg Message, p Peer) Message {
 
 	_, ok = b.topics[subscribe.Topic]
 	if !ok {
-		log.Println("Topic not found")
-
 		//create topic!
 		b.topics[subscribe.Topic] = make(map[ID]bool)
+		b.topicPeers[subscribe.Topic] = make(map[PeerID]ID)
 	}
 
 	//check if subscriptor is already register to topic
@@ -110,7 +109,10 @@ func (b *defaultBroker) UnSubscribe(msg Message, p Peer) Message {
 	if len(b.topics[topic]) == 0 {
 		delete(b.topics, topic)
 	}
-
+	//if void topic remove it
+	if len(b.topicPeers[topic]) == 0 {
+		delete(b.topicPeers, topic)
+	}
 	return &Unsubscribed{
 		Request: unsubscribe.Request,
 	}
@@ -146,9 +148,10 @@ func (b *defaultBroker) Publish(msg Message, p Peer) Message {
 			continue
 		}
 
-		//send message in a non blocking way
-		// @TODO: check if sender equals publisher!
-		go peer.Send(msg)
+		if peer.ID() != p.ID() {
+			//send message in a non blocking way
+			go peer.Send(msg)
+		}
 	}
 
 	return &Published{

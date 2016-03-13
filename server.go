@@ -1,9 +1,13 @@
-package wamp
+package wampire
 
 import (
+	"fmt"
 	"github.com/gorilla/mux"
 	"log"
+	"net"
 	"net/http"
+	"os"
+	"time"
 )
 
 type Server struct {
@@ -23,46 +27,40 @@ func NewServer(port int) *websocketServer {
 	}
 }
 
-func (s *websocketServer) Start() {
+func (s *websocketServer) Run() {
+	defer log.Println("Start EXIT!!!")
+	log.Println("Server Starting")
+
 	router := mux.NewRouter().StrictSlash(true)
 	router.HandleFunc("/ws", s.serveWs)
-	log.Fatal(http.ListenAndServe(":8080", router))
-}
 
-func (s *websocketServer) Run() {
-	for {
-		/*		select {
-				case p := <-s.register:
-					s.peers[p.userId] = p
-					log.Println("Registered user ", p.userId)
-					break
+	port := fmt.Sprintf(":%d", s.port)
 
-				case p := <-s.unregister:
-					_, ok := s.peers[p.userId]
-					if ok {
-						delete(s.peers, p.userId)
-						close(p.send)
-					}
-					break
-
-				case r := <-s.publish:
-					p, ok := s.peers[r.userId]
-					if !ok {
-						log.Println("UserId Not found")
-						break
-					}
-
-					p.send <- []byte(r.payload)
-				}*/
+	ln, err := net.Listen("tcp", port)
+	if err != nil {
+		log.Println("Server Error Listening ", err)
+		return
 	}
+	log.Println("Before Serve")
 
+	err = http.Serve(ln, router)
+	if err != nil {
+		log.Panic("Server Error Serving ", err)
+		return
+	}
 }
 
 func (s *websocketServer) Terminate() {
-
+	s.router.Terminate()
+	time.Sleep(time.Second * 2)
+	// Quick and dirty way to stop http.Serve!
+	os.Exit(0)
 }
 
 func (s *websocketServer) serveWs(w http.ResponseWriter, r *http.Request) {
+	defer log.Println("XXX serveWS exit")
+
+	log.Println("Serve websocket connection")
 	if r.Method != "GET" {
 		http.Error(w, "Method not allowed", 405)
 		return
@@ -76,6 +74,5 @@ func (s *websocketServer) serveWs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	p := NewWebsockerPeer(ws)
-
 	s.router.Accept(p)
 }

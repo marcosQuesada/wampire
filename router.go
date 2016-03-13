@@ -1,8 +1,9 @@
-package wamp
+package wampire
 
 import (
 	"fmt"
 	"log"
+	"sync"
 	"time"
 )
 
@@ -10,6 +11,8 @@ type Router struct {
 	peers  map[ID]Peer
 	broker Broker
 	dealer Dealer
+	exit   chan struct{}
+	wg     *sync.WaitGroup
 }
 
 func NewRouter() *Router {
@@ -17,6 +20,8 @@ func NewRouter() *Router {
 		peers:  make(map[ID]Peer),
 		broker: NewBroker(),
 		dealer: NewDealer(),
+		exit:   make(chan struct{}),
+		wg:     &sync.WaitGroup{},
 	}
 }
 
@@ -33,32 +38,71 @@ func (r *Router) Accept(p Peer) error {
 			return fmt.Errorf(err)
 		}
 
-		//@TODO: handle here authentication
-		fmt.Println("Hello data ", h.Details)
+		var response Message
+		if r.authenticate(h) {
+			response = &Abort{
+				Id: h.Id,
+			}
+		}
+
 		//answer welcome
-		welcome := &Welcome{
+		response = &Welcome{
 			Id: h.Id,
 		}
-		p.Send(welcome)
-
+		p.Send(response)
 		//if all goes fine
 		go r.handleSession(p)
 
 		return nil
 	case <-timeout.C:
+		log.Println("Timeout error waiting Hello Message")
 		return fmt.Errorf("Timeout error waiting Hello Message")
 	}
 }
 
+func (r *Router) Terminate() {
+	log.Println("Invoked Router terminated!")
+	close(r.exit)
+	r.wg.Wait()
+	log.Println("Router terminated!")
+}
+
 func (r *Router) handleSession(p Peer) {
+	defer log.Println("Exit session handler from peer ", p.ID())
+	defer r.wg.Done()
+	defer p.Terminate()
+
+	r.wg.Add(1)
+
 	for {
 		select {
 		case msg, open := <-p.Receive():
 			if !open {
-				break
+				log.Println("Closing handled session from closed receive chan")
+				return
 			}
 
-			log.Println("Received message on handle Session", msg)
+			switch msg.(type) {
+			case *Publish:
+				log.Println("Received Publish")
+				response := r.broker.Publish(msg, p)
+				p.Send(response)
+			case *Subscribe:
+				log.Println("Received Subscribe")
+				response := r.broker.Subscribe(msg, p)
+				p.Send(response)
+			default:
+				log.Println("Unhandled message")
+				p.Send(&Error{Request: ID("123")})
+			}
+
+		case <-r.exit:
+			log.Println("Shutting down session handler from peer ", p.ID())
+			return
 		}
 	}
+}
+
+func (r *Router) authenticate(msg Message) bool {
+	return true
 }

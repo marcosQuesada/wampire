@@ -1,4 +1,4 @@
-package wampire
+package main
 
 import (
 	"flag"
@@ -7,6 +7,7 @@ import (
 	"os/signal"
 	"runtime"
 	"syscall"
+	"github.com/marcosQuesada/wampire"
 )
 
 func main() {
@@ -29,7 +30,7 @@ func main() {
 	if *logOut {
 		log.SetOutput(f)
 	}
-	s := NewServer(*port)
+	s := wampire.NewServer(*port)
 	c := make(chan os.Signal, 1)
 
 	signal.Notify(

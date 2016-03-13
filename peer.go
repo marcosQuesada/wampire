@@ -1,9 +1,10 @@
-package wamp
+package wampire
 
 import (
 	"github.com/gorilla/websocket"
 	"log"
 	"net/http"
+	"sync"
 	"time"
 )
 
@@ -18,8 +19,10 @@ type Peer interface {
 	Send(Message)
 	Receive() chan Message
 	ID() PeerID
+	Terminate()
 }
 
+// @TODO: adjust buffers size!
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:  4096,
 	WriteBufferSize: 4096,
@@ -33,8 +36,10 @@ type webSocketPeer struct {
 	receive    chan Message
 	send       chan Message
 	exit       chan struct{}
+	closedConn       chan struct{}
 	conn       *websocket.Conn
 	id         PeerID
+	wg         *sync.WaitGroup
 }
 
 func NewWebsockerPeer(conn *websocket.Conn) *webSocketPeer {
@@ -43,9 +48,19 @@ func NewWebsockerPeer(conn *websocket.Conn) *webSocketPeer {
 		receive:    make(chan Message),
 		send:       make(chan Message),
 		exit:       make(chan struct{}),
+		closedConn:       make(chan struct{}),
 		conn:       conn,
 		id:         PeerID(NewId()),
+		wg:         &sync.WaitGroup{},
 	}
+	p.conn.SetReadLimit(maxMessageSize)
+	p.conn.SetReadDeadline(time.Now().Add(pongWait))
+	p.conn.SetPingHandler(func(string) error {
+		log.Println("Received Ping, renewing deadline")
+		p.conn.SetReadDeadline(time.Now().Add(pongWait))
+		return nil
+	})
+	p.wg.Add(2)
 	go p.writeLoop()
 	go p.readLoop()
 
@@ -64,16 +79,18 @@ func (p *webSocketPeer) ID() PeerID {
 	return p.id
 }
 
-func (p *webSocketPeer) terinate() {
+func (p *webSocketPeer) Terminate() {
 	close(p.exit)
+	p.conn.Close()
+	p.wg.Wait()
+	log.Println("EXITED peer ", p.id)
 }
 
 func (p *webSocketPeer) writeLoop() {
 	ticker := time.NewTicker(pingPeriod)
-
 	defer func() {
 		ticker.Stop()
-		p.conn.Close()
+		p.wg.Done()
 	}()
 
 	for {
@@ -93,42 +110,41 @@ func (p *webSocketPeer) writeLoop() {
 		//ping message
 		case <-ticker.C:
 			if err := p.write(websocket.PingMessage, []byte{}); err != nil {
+				log.Println("Error writting Ping message", err)
 				return
 			}
+		case <-p.closedConn:
+			log.Println("writeLoop closedConn chan close")
+			return
 		case <-p.exit:
-			break
+			log.Println("writeLoop exit chan close")
+			return
 		}
 	}
 }
 
 func (p *webSocketPeer) readLoop() {
 	defer func() {
-		p.conn.Close()
+		p.wg.Done()
+		close(p.closedConn)
 	}()
-
-	p.conn.SetReadLimit(maxMessageSize)
-	p.conn.SetReadDeadline(time.Now().Add(pongWait))
-	p.conn.SetPingHandler(func(string) error {
-		log.Println("Received Ping, renewing deadline")
-		p.conn.SetReadDeadline(time.Now().Add(pongWait))
-		return nil
-	})
 
 	for {
 		_, data, err := p.conn.ReadMessage()
 		if err != nil {
-			break
+			log.Println("Error reading Message on websocket Client", err)
+			return
 		}
 
-		log.Println("Received ", string(data))
 		message, err := p.serializer.Deserialize(data)
 		if err != nil {
 			log.Fatal("Fatal on deserialize ", err)
 
 		}
-		if message != nil {
-			p.receive <- message
-		}
+		log.Println("Peer Message Type", message.MsgType())
+
+		p.receive <- message
+
 	}
 }
 

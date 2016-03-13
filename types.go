@@ -1,4 +1,4 @@
-package wamp
+package wampire
 
 import (
 	"github.com/nu7hatch/gouuid"
@@ -151,6 +151,7 @@ func (msg *Welcome) MsgType() MsgType {
 
 // [ABORT, Details|dict, Reason|uri]
 type Abort struct {
+	Id      ID
 	Details map[string]interface{}
 	Reason  URI
 }

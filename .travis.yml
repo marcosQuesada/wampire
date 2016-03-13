@@ -1,0 +1,9 @@
+language: go
+
+go: 1.5
+
+install:
+  - go get ./...
+
+script:
+  - make test

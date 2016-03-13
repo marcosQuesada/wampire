@@ -1,4 +1,4 @@
-package wamp
+package wampire
 
 import (
 	"encoding/json"
