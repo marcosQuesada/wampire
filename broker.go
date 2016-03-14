@@ -16,7 +16,7 @@ type defaultBroker struct {
 	subscriptions       map[ID]Peer             //a peer may have many subscriptions
 	topicPeers          map[Topic]map[PeerID]ID //maps peers by topic on subscription
 	topicBySubscription map[ID]Topic            // topic from Subscription ID
-	mutex *sync.RWMutex
+	mutex               *sync.RWMutex
 }
 
 func NewBroker() *defaultBroker {
@@ -25,7 +25,7 @@ func NewBroker() *defaultBroker {
 		subscriptions:       make(map[ID]Peer),
 		topicPeers:          make(map[Topic]map[PeerID]ID),
 		topicBySubscription: make(map[ID]Topic),
-		mutex: &sync.RWMutex{},
+		mutex:               &sync.RWMutex{},
 	}
 }
 
@@ -81,7 +81,7 @@ func (b *defaultBroker) UnSubscribe(msg Message, p Peer) Message {
 
 		return &Error{
 			Request: unsubscribe.Request,
-			Error: URI(uri),
+			Error:   URI(uri),
 		}
 	}
 
@@ -92,7 +92,7 @@ func (b *defaultBroker) UnSubscribe(msg Message, p Peer) Message {
 
 		return &Error{
 			Request: unsubscribe.Request,
-			Error: URI(uri),
+			Error:   URI(uri),
 		}
 	}
 
@@ -133,7 +133,7 @@ func (b *defaultBroker) Publish(msg Message, p Peer) Message {
 
 		return &Error{
 			Request: publish.Request,
-			Error: URI(uri),
+			Error:   URI(uri),
 		}
 	}
 

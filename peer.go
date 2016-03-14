@@ -37,7 +37,7 @@ type webSocketPeer struct {
 	receive    chan Message
 	send       chan Message
 	exit       chan struct{}
-	closedConn       chan struct{}
+	closedConn chan struct{}
 	conn       *websocket.Conn
 	id         PeerID
 	wg         *sync.WaitGroup
@@ -49,7 +49,7 @@ func NewWebsockerPeer(conn *websocket.Conn) *webSocketPeer {
 		receive:    make(chan Message),
 		send:       make(chan Message),
 		exit:       make(chan struct{}),
-		closedConn:       make(chan struct{}),
+		closedConn: make(chan struct{}),
 		conn:       conn,
 		id:         PeerID(NewId()),
 		wg:         &sync.WaitGroup{},
@@ -76,10 +76,8 @@ func (p *webSocketPeer) Receive() chan Message {
 	return p.receive
 }
 
-func (p *webSocketPeer) Request(msg Message)  Message {
-	return &Error{
-
-	}
+func (p *webSocketPeer) Request(msg Message) Message {
+	return &Error{}
 }
 func (p *webSocketPeer) ID() PeerID {
 	return p.id

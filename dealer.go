@@ -2,8 +2,8 @@ package wampire
 
 import (
 	"fmt"
-	"sync"
 	"log"
+	"sync"
 )
 
 type Dealer interface {
@@ -11,21 +11,24 @@ type Dealer interface {
 	Call(Message, Peer) Message
 	RegisterExternalHandler(Message, Peer) Message
 	UnregisterExternalHandler(Message, Peer) Message
+	ExternalResult(Message, Peer)
 }
 
 type Handler func(Message, Peer) (Message, error)
 
 type defaultDealer struct {
-	handlers map[URI]Handler
+	handlers          map[URI]Handler
 	delegatedHandlers map[ID]URI
-	mutex    *sync.RWMutex
+	mutex             *sync.RWMutex
+	reqListeners      *RequestListener
 }
 
 func NewDealer() *defaultDealer {
 	return &defaultDealer{
-		handlers: make(map[URI]Handler),
+		handlers:          make(map[URI]Handler),
 		delegatedHandlers: make(map[ID]URI),
-		mutex: &sync.RWMutex{},
+		mutex:             &sync.RWMutex{},
+		reqListeners:      NewRequestListener(),
 	}
 }
 
@@ -50,24 +53,25 @@ func (d *defaultDealer) unregister(uri URI) error {
 
 	return nil
 }
+
 func (d *defaultDealer) RegisterExternalHandler(msg Message, p Peer) Message {
 	d.mutex.Lock()
 	defer d.mutex.Unlock()
 	register := msg.(*Register)
 	if _, ok := d.handlers[register.Procedure]; ok {
-		uri :=fmt.Sprintf("%s handler already registered ", register.Procedure)
+		uri := fmt.Sprintf("%s handler already registered ", register.Procedure)
 		return &Error{
 			Request: register.Request,
-			Error: URI(uri),
+			Error:   URI(uri),
 		}
 	}
 	// Register peer that offers uri service
-	delegated := NewDelegatedCall(register.Procedure, p)
-	d.handlers[register.Procedure] = delegated.delegatedCall
+	delegated := d.delegateCall(register.Procedure, p)
+	d.handlers[register.Procedure] = delegated.externalCall
 	d.delegatedHandlers[delegated.id] = register.Procedure
 
 	return &Registered{
-		Request: register.Request,
+		Request:      register.Request,
 		Registration: delegated.id,
 	}
 }
@@ -76,20 +80,20 @@ func (d *defaultDealer) UnregisterExternalHandler(msg Message, p Peer) Message {
 	unregister := msg.(*Unregister)
 	uri, ok := d.delegatedHandlers[unregister.Registration]
 	if !ok {
-		uri :=fmt.Sprintf("%s handler not registered ", unregister.Request)
+		uri := fmt.Sprintf("%s handler not registered ", unregister.Request)
 		return &Error{
 			Request: unregister.Request,
-			Error: URI(uri),
+			Error:   URI(uri),
 		}
 	}
 	err := d.unregister(uri)
-	if err!=nil {
-		uri :=fmt.Sprintf("Unexpected error unregistering delegated Handler")
+	if err != nil {
+		uri := fmt.Sprintf("Unexpected error unregistering delegated Handler")
 		log.Println(uri, err)
 
 		return &Error{
 			Request: unregister.Request,
-			Error: URI(uri),
+			Error:   URI(uri),
 		}
 	}
 
@@ -119,7 +123,7 @@ func (d *defaultDealer) Call(msg Message, p Peer) Message {
 	}
 
 	response, err := handler(call, p)
-	if err!= nil {
+	if err != nil {
 		uri := "Error invoking Handler"
 		log.Print(uri, err)
 		return &Error{
@@ -129,26 +133,40 @@ func (d *defaultDealer) Call(msg Message, p Peer) Message {
 
 	return response
 }
-
-type delegatedCall struct {
-	procedure URI
-	peer Peer
-	id ID
+func (d *defaultDealer) ExternalResult(msg Message, p Peer) {
+	//@TODO: SURE TO HANDLE THIS FROM REQUEST LISTENERS ¿?
+	externalResult := msg.(*Result)
+	d.reqListeners.Notify(msg, externalResult.Request)
 }
 
-func NewDelegatedCall(uri URI, p Peer) *delegatedCall {
+type delegatedCall struct {
+	reqListener *RequestListener //@TODO: Rethink this
+	procedure   URI
+	peer        Peer
+	id          ID
+}
+
+func (d *defaultDealer) delegateCall(uri URI, p Peer) *delegatedCall {
 	return &delegatedCall{
-		procedure: uri,
-		peer: p,
-		id: NewId(),
+		procedure:   uri,
+		peer:        p,
+		id:          NewId(),
+		reqListener: d.reqListeners,
 	}
 }
 
-func (d *delegatedCall) delegatedCall(msg Message, p Peer) (Message, error){
-	rsp := p.Request(msg)
-	log.Println("Result is ", rsp.MsgType())
+func (d *delegatedCall) externalCall(msg Message, p Peer) (Message, error) {
+	call := msg.(*Call)
+	log.Println("Delegated Call Request is ", call.Request, "dest peer ", d.peer.ID())
+	d.peer.Send(call)
 	//How to handle response!
-	return &Error{
-		Error: URI("Pending to develop"),
-	}, nil
+	msg, err := d.reqListener.RegisterAndWait(call.Request)
+	if err != nil {
+		log.Println("Error waiting response ", err, msg)
+		return &Error{
+			Error: URI("Pending to develop"),
+		}, nil
+	}
+
+	return msg, nil
 }

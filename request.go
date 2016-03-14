@@ -31,7 +31,10 @@ func (r *RequestListener) Register(requestID ID) {
 }
 
 func (r *RequestListener) Notify(msg Message, requestID ID) {
-	if l, ok := r.listeners[requestID]; ok {
+	r.mutex.Lock()
+	l, ok := r.listeners[requestID]
+	r.mutex.Unlock()
+	if ok {
 		l <- msg
 		return
 	}
@@ -39,7 +42,9 @@ func (r *RequestListener) Notify(msg Message, requestID ID) {
 }
 
 func (r *RequestListener) Wait(requestID ID) (msg Message, err error) {
+	r.mutex.Lock()
 	waitChannel, ok := r.listeners[requestID]
+	r.mutex.Unlock()
 	if !ok {
 		return nil, fmt.Errorf("unknown listener ID: %v", requestID)
 	} else {
