@@ -58,8 +58,6 @@ func (s *websocketServer) Terminate() {
 }
 
 func (s *websocketServer) serveWs(w http.ResponseWriter, r *http.Request) {
-	defer log.Println("XXX serveWS exit")
-
 	log.Println("Serve websocket connection")
 	if r.Method != "GET" {
 		http.Error(w, "Method not allowed", 405)

@@ -11,7 +11,7 @@ import (
 	"flag"
 )
 
-func mainClient() {
+func main() {
 	//Init logger
 	log.SetFlags(log.Ldate | log.Ltime | log.Lmicroseconds | log.Lshortfile)
 	//Parse config
@@ -42,56 +42,24 @@ func mainClient() {
 }
 
 type testClient struct {
-	client *wampire.WebSocketClient
+	client *wampire.PeerClient
 	done   chan struct{}
 }
 
 func NewTestClient(host string) *testClient {
-	cl := wampire.NewWebSocketClient(host)
+	cl := wampire.NewPeerClient(host)
 	sc := &testClient{
 		client: cl,
 		done:   make(chan struct{}),
 	}
 
-	go sc.run()
+
+	fmt.Println("Subscribe to Topic foo")
+	id := wampire.NewId()
+	subs := &wampire.Subscribe{Request: id, Topic: wampire.Topic("foo")}
+	sc.client.Send(subs)
 
 	return sc
-}
-
-func (c *testClient) run() {
-	defer log.Println("Exiting client readLoop")
-
-	id := wampire.NewId()
-	c.client.Send(&wampire.Hello{Id: id})
-	r := <-c.client.Receive()
-	if r.MsgType() != wampire.WELCOME {
-		log.Panic("unexpected Hello response ", r.MsgType())
-	}
-	fmt.Println("Subscribe to Topic foo")
-	subs := &wampire.Subscribe{Request: id, Topic: wampire.Topic("foo")}
-	c.client.Send(subs)
-	r = <-c.client.Receive()
-	if r.MsgType() != wampire.SUBSCRIBED {
-		log.Panic("unexpected Hello response ", r.MsgType())
-	}
-	fmt.Println("Received from subscribe ", r)
-
-	for {
-		select {
-		case msg, open := <-c.client.Receive():
-			if !open {
-				log.Println("Closed Rcv on readLoop")
-				close(c.done)
-				return
-			}
-			log.Print("Client Receive msg: ", msg.MsgType())
-
-		case <-c.done:
-			log.Println("Closed Done from readLoop")
-			c.client.Terminate()
-			return
-		}
-	}
 }
 
 func (c *testClient) writeLoop() {

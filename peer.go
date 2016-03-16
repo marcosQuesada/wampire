@@ -33,13 +33,13 @@ var upgrader = websocket.Upgrader{
 }
 
 type webSocketPeer struct {
-	serializer Serializer
+	id         PeerID
+	conn       *websocket.Conn
 	receive    chan Message
 	send       chan Message
-	exit       chan struct{}
 	closedConn chan struct{}
-	conn       *websocket.Conn
-	id         PeerID
+	exit       chan struct{}
+	serializer Serializer
 	wg         *sync.WaitGroup
 }
 
