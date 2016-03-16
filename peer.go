@@ -15,6 +15,18 @@ const (
 	maxMessageSize = 1024 * 1024
 )
 
+type Session struct {
+	Peer
+	subscriptions map[ID]Topic
+}
+
+func NewSession(p Peer) *Session {
+	return &Session{
+		Peer: p,
+		subscriptions: make(map[ID]Topic),
+	}
+}
+
 type Peer interface {
 	Send(Message)
 	Request(Message) Message
@@ -69,6 +81,12 @@ func NewWebsockerPeer(conn *websocket.Conn) *webSocketPeer {
 }
 
 func (p *webSocketPeer) Send(msg Message) {
+/*	defer func() {
+		//hacky way to solve close of a closed channel
+		if r := recover(); r != nil {
+			log.Println("Recovered in close defer!!! ", r)
+		}
+	}()*/
 	p.send <- msg
 }
 
@@ -84,7 +102,10 @@ func (p *webSocketPeer) ID() PeerID {
 }
 
 func (p *webSocketPeer) Terminate() {
+	//close(p.send)
+	time.Sleep(time.Millisecond * 100) // give enough time to send close frame
 	close(p.exit)
+
 	p.conn.Close()
 	p.wg.Wait()
 	log.Println("EXITED peer ", p.id)
@@ -94,6 +115,7 @@ func (p *webSocketPeer) writeLoop() {
 	ticker := time.NewTicker(pingPeriod)
 	defer func() {
 		ticker.Stop()
+		log.Println("Write Loop Down ")
 		p.wg.Done()
 	}()
 
@@ -101,6 +123,7 @@ func (p *webSocketPeer) writeLoop() {
 		select {
 		case message, ok := <-p.send:
 			if !ok {
+				log.Println("Sending Close frame")
 				p.write(websocket.CloseMessage, []byte{})
 				return
 			}
@@ -130,7 +153,9 @@ func (p *webSocketPeer) writeLoop() {
 func (p *webSocketPeer) readLoop() {
 	defer func() {
 		p.wg.Done()
+		log.Println("Read Loop Down ")
 		close(p.closedConn)
+		close(p.receive)
 	}()
 
 	for {

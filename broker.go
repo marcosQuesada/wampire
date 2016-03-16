@@ -49,7 +49,9 @@ func (b *defaultBroker) Subscribe(msg Message, p Peer) Message {
 	//check if subscriptor is already register to topic
 	if subs, ok := b.topicPeers[subscribe.Topic][p.ID()]; ok {
 		log.Println("Peer already subscribed on subscription ", subs)
-		return &Error{}
+		return &Error{
+			Error: URI("Peer already subscribed on subscription"),
+		}
 	}
 
 	subscriptionId := NewId()

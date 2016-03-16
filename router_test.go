@@ -25,7 +25,7 @@ func TestBasicRouterAccept(t *testing.T) {
 func TestBasicRouterHandleSessionUnHandledMessage(t *testing.T) {
 	r := NewRouter()
 	fp := NewFakePeer(PeerID("123"))
-	go r.handleSession(fp)
+	go r.handleSession(NewSession(fp))
 
 	fp.rcv <- &Hello{Id: ID("123")}
 	w := <-fp.snd

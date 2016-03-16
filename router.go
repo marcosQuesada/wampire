@@ -51,7 +51,8 @@ func (r *Router) Accept(p Peer) error {
 		}
 		p.Send(response)
 		//if all goes fine
-		go r.handleSession(p)
+		session := NewSession(p)
+		go r.handleSession(session)
 
 		return nil
 	case <-timeout.C:
@@ -67,11 +68,17 @@ func (r *Router) Terminate() {
 	log.Println("Router terminated!")
 }
 
-func (r *Router) handleSession(p Peer) {
+func (r *Router) handleSession(p *Session) {
 	defer log.Println("Exit session handler from peer ", p.ID())
 	defer r.wg.Done()
 	defer p.Terminate()
-
+	defer func() {
+		for sid, topic := range p.subscriptions {
+			log.Println("Unsubscribe sid %s on topic %s", sid, topic)
+			u := &Unsubscribe{Request: NewId(), Subscription: sid}
+			r.broker.UnSubscribe(u, nil)
+		}
+	}()
 	r.wg.Add(1)
 
 	for {
@@ -90,9 +97,19 @@ func (r *Router) handleSession(p Peer) {
 			case *Subscribe:
 				log.Println("Received Subscribe")
 				response = r.broker.Subscribe(msg, p)
+				//store subscription on session
+				//unsubscribe on session close
+				if s, ok := response.(*Subscribed); ok {
+					p.subscriptions[s.Subscription] = msg.(*Subscribe).Topic
+				}
 			case *Unsubscribe:
 				log.Println("Received Subscribe")
 				response = r.broker.UnSubscribe(msg, p)
+				// remove subscription from session
+				if _, ok := response.(*Unsubscribed); ok {
+					s := msg.(*Unsubscribe)
+					delete(p.subscriptions, s.Subscription)
+				}
 			case *Call:
 				log.Println("Received Call")
 				response = r.dealer.Call(msg, p)

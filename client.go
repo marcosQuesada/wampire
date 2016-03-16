@@ -8,8 +8,9 @@ import (
 
 type PeerClient struct {
 	Peer
-	handlers map[URI]Handler
-	exit     chan struct{}
+	subscriptions map[ID]bool
+	handlers      map[URI]Handler
+	exit          chan struct{}
 }
 
 func NewPeerClient(host string) *PeerClient {
@@ -22,9 +23,10 @@ func NewPeerClient(host string) *PeerClient {
 	}
 
 	pc := &PeerClient{
-		Peer:     NewWebsockerPeer(conn),
-		handlers: make(map[URI]Handler),
-		exit:     make(chan struct{}),
+		Peer:          NewWebsockerPeer(conn),
+		subscriptions: make(map[ID]bool),
+		handlers:      make(map[URI]Handler),
+		exit:          make(chan struct{}),
 	}
 
 	go pc.run()
@@ -64,7 +66,12 @@ func (p *PeerClient) run() {
 			}
 
 		case <-p.exit:
-			log.Println("Exiting Websocket Run")
+			//@TODO: Must be handled server side! Unsubscribe before going down
+/*			for subscriptionId, _ := range p.subscriptions {
+				u := &Unsubscribe{Request: NewId(), Subscription: subscriptionId}
+				p.Send(u)
+			}
+			log.Println("Exiting Websocket Run")*/
 			return
 		}
 	}
@@ -86,6 +93,7 @@ func (p *PeerClient) route(msg Message) Message {
 		return nil
 	case SUBSCRIBED:
 		log.Println("Received Subscribed ", msg)
+		p.subscriptions[msg.(*Subscribed).Subscription] = true
 		return nil
 	case CALL:
 		response := p.handleCall(msg.(*Call))
@@ -107,7 +115,7 @@ func (p *PeerClient) route(msg Message) Message {
 
 }
 
-func (p *PeerClient) handleCall(call *Call) (Message) {
+func (p *PeerClient) handleCall(call *Call) Message {
 	handler, ok := p.handlers[call.Procedure]
 	if !ok {
 		uri := "Client Handler not found"

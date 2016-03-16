@@ -52,7 +52,7 @@ func (s *websocketServer) Run() {
 
 func (s *websocketServer) Terminate() {
 	s.router.Terminate()
-	time.Sleep(time.Second * 2)
+	time.Sleep(time.Second * 1)
 	// Quick and dirty way to stop http.Serve!
 	os.Exit(0)
 }

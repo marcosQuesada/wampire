@@ -72,7 +72,9 @@ func (c *testClient) writeLoop() {
 			c.client.Send(pub)
 
 		case <-c.done:
+			tick.Stop()
 			log.Println("Closed Done from writeLoop")
+			c.client.Terminate()
 			return
 		}
 	}
