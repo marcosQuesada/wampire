@@ -52,6 +52,7 @@ func (r *Router) Accept(p Peer) error {
 		p.Send(response)
 		//if all goes fine
 		session := NewSession(p)
+		r.wg.Add(1)
 		go r.handleSession(session)
 
 		return nil
@@ -79,7 +80,6 @@ func (r *Router) handleSession(p *Session) {
 			r.broker.UnSubscribe(u, nil)
 		}
 	}()
-	r.wg.Add(1)
 
 	for {
 		select {
@@ -97,6 +97,7 @@ func (r *Router) handleSession(p *Session) {
 			case *Subscribe:
 				log.Println("Received Subscribe")
 				response = r.broker.Subscribe(msg, p)
+
 				//store subscription on session
 				//unsubscribe on session close
 				if s, ok := response.(*Subscribed); ok {
@@ -105,6 +106,7 @@ func (r *Router) handleSession(p *Session) {
 			case *Unsubscribe:
 				log.Println("Received Subscribe")
 				response = r.broker.UnSubscribe(msg, p)
+
 				// remove subscription from session
 				if _, ok := response.(*Unsubscribed); ok {
 					s := msg.(*Unsubscribe)
