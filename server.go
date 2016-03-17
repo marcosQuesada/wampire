@@ -11,23 +11,20 @@ import (
 )
 
 type Server struct {
-}
-
-type websocketServer struct {
 	port   int
 	router *Router
 }
 
-func NewServer(port int) *websocketServer {
+func NewServer(port int) *Server {
 	router := NewRouter()
 
-	return &websocketServer{
+	return &Server{
 		port:   port,
 		router: router,
 	}
 }
 
-func (s *websocketServer) Run() {
+func (s *Server) Run() {
 	defer log.Println("Start EXIT!!!")
 	log.Println("Server Starting")
 
@@ -50,14 +47,14 @@ func (s *websocketServer) Run() {
 	}
 }
 
-func (s *websocketServer) Terminate() {
+func (s *Server) Terminate() {
 	s.router.Terminate()
 	time.Sleep(time.Second * 1)
 	// Quick and dirty way to stop http.Serve!
 	os.Exit(0)
 }
 
-func (s *websocketServer) serveWs(w http.ResponseWriter, r *http.Request) {
+func (s *Server) serveWs(w http.ResponseWriter, r *http.Request) {
 	log.Println("Serve websocket connection")
 	if r.Method != "GET" {
 		http.Error(w, "Method not allowed", 405)

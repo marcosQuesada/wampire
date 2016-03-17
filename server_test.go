@@ -34,7 +34,7 @@ func TestServerConnectionHandling(t *testing.T) {
 
 	close(tstClient.done)
 	//@TODO : Solve this test!
-/*	s.Terminate()*/
+	s.Terminate()
 }
 
 type testClient struct {

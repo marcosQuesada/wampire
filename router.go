@@ -8,20 +8,23 @@ import (
 )
 
 type Router struct {
-	peers  map[ID]Peer
-	broker Broker
-	dealer Dealer
-	exit   chan struct{}
-	wg     *sync.WaitGroup
+	sessions map[PeerID]*Session
+	broker   Broker
+	dealer   Dealer
+	exit     chan struct{}
+	mutex    *sync.RWMutex
+	auth     Authenticator
 }
+
+type Authenticator func(Message) bool
 
 func NewRouter() *Router {
 	return &Router{
-		peers:  make(map[ID]Peer),
-		broker: NewBroker(),
-		dealer: NewDealer(),
-		exit:   make(chan struct{}),
-		wg:     &sync.WaitGroup{},
+		sessions: make(map[PeerID]*Session),
+		broker:   NewBroker(),
+		dealer:   NewDealer(),
+		exit:     make(chan struct{}),
+		mutex:    &sync.RWMutex{},
 	}
 }
 
@@ -50,9 +53,10 @@ func (r *Router) Accept(p Peer) error {
 			Id: h.Id,
 		}
 		p.Send(response)
-		//if all goes fine
+
 		session := NewSession(p)
-		r.wg.Add(1)
+		r.register(session)
+
 		go r.handleSession(session)
 
 		return nil
@@ -63,16 +67,29 @@ func (r *Router) Accept(p Peer) error {
 }
 
 func (r *Router) Terminate() {
-	log.Println("Invoked Router terminated!")
 	close(r.exit)
-	r.wg.Wait()
+
+	//wait until all handleSession has finished
+	<-r.waitUntilVoid()
 	log.Println("Router terminated!")
+}
+
+func (r *Router) SetAuthenticator(a Authenticator) {
+	r.auth = a
+}
+
+func (r *Router) authenticate(msg Message) bool {
+	if r.auth != nil {
+		return r.auth(msg)
+	}
+
+	return true
 }
 
 func (r *Router) handleSession(p *Session) {
 	defer log.Println("Exit session handler from peer ", p.ID())
-	defer r.wg.Done()
 	defer p.Terminate()
+	defer r.unRegister(p)
 	defer func() {
 		for sid, topic := range p.subscriptions {
 			log.Println("Unsubscribe sid %s on topic %s", sid, topic)
@@ -142,6 +159,46 @@ func (r *Router) handleSession(p *Session) {
 	}
 }
 
-func (r *Router) authenticate(msg Message) bool {
-	return true
+func (r *Router) register(p *Session) error {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+
+	if _, ok := r.sessions[p.ID()]; ok {
+		return fmt.Errorf("Peer %s already registered", p.ID())
+	}
+
+	r.sessions[p.ID()] = p
+
+	return nil
+}
+
+func (r *Router) unRegister(p *Session) error {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+
+	if _, ok := r.sessions[p.ID()]; !ok {
+		return fmt.Errorf("Peer %s not registered", p.ID())
+	}
+
+	delete(r.sessions, p.ID())
+
+	return nil
+}
+
+func (r *Router) waitUntilVoid() chan struct{} {
+	void := make(chan struct{})
+	go func() {
+		for {
+			r.mutex.RLock()
+			sessions := len(r.sessions)
+			r.mutex.RUnlock()
+			if sessions == 0 {
+				close(void)
+				return
+			}
+			time.Sleep(time.Millisecond * 100)
+		}
+	}()
+
+	return void
 }
