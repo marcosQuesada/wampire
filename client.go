@@ -66,12 +66,6 @@ func (p *PeerClient) run() {
 			}
 
 		case <-p.exit:
-			//@TODO: Must be handled server side! Unsubscribe before going down
-/*			for subscriptionId, _ := range p.subscriptions {
-				u := &Unsubscribe{Request: NewId(), Subscription: subscriptionId}
-				p.Send(u)
-			}
-			log.Println("Exiting Websocket Run")*/
 			return
 		}
 	}
@@ -80,7 +74,7 @@ func (p *PeerClient) run() {
 func (p *PeerClient) route(msg Message) Message {
 	switch msg.MsgType() {
 	case WELCOME:
-		log.Println("Client received Welcome")
+		log.Println("Client received Welcome ", msg.(*Welcome).Id)
 		return nil
 	case ABORT:
 		log.Println("Client received Abort")

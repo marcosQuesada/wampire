@@ -96,7 +96,7 @@ func (p *webSocketPeer) ID() PeerID {
 }
 
 func (p *webSocketPeer) Terminate() {
-	//close(p.send)
+	close(p.send)
 	time.Sleep(time.Millisecond * 100) // give enough time to send close frame
 	close(p.exit)
 
@@ -109,7 +109,6 @@ func (p *webSocketPeer) writeLoop() {
 	ticker := time.NewTicker(pingPeriod)
 	defer func() {
 		ticker.Stop()
-		log.Println("Write Loop Down ")
 		p.wg.Done()
 	}()
 
@@ -117,7 +116,6 @@ func (p *webSocketPeer) writeLoop() {
 		select {
 		case message, ok := <-p.send:
 			if !ok {
-				log.Println("Sending Close frame")
 				p.write(websocket.CloseMessage, []byte{})
 				return
 			}
@@ -147,7 +145,6 @@ func (p *webSocketPeer) writeLoop() {
 func (p *webSocketPeer) readLoop() {
 	defer func() {
 		p.wg.Done()
-		log.Println("Read Loop Down ")
 		close(p.closedConn)
 		close(p.receive)
 	}()
