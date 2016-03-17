@@ -1,14 +1,15 @@
 package main
 
 import (
+	"bufio"
+	"flag"
 	"fmt"
 	"github.com/marcosQuesada/wampire"
 	"log"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
-	"time"
-	"flag"
 )
 
 func main() {
@@ -30,52 +31,88 @@ func main() {
 		syscall.SIGTERM,
 		syscall.SIGQUIT)
 
-	tstClient := NewTestClient(fmt.Sprintf("%s:%d",*host, *port))
+	client := NewCliClient(fmt.Sprintf("%s:%d", *host, *port))
 
 	//serve until signal
 	go func() {
 		<-c
-		close(tstClient.done)
+		close(client.done)
 	}()
 
-	tstClient.writeLoop()
+	client.processCli()
 }
 
-type testClient struct {
+type cliClient struct {
 	client *wampire.PeerClient
+	reader *bufio.Reader
 	done   chan struct{}
 }
 
-func NewTestClient(host string) *testClient {
+func NewCliClient(host string) *cliClient {
 	cl := wampire.NewPeerClient(host)
-	sc := &testClient{
+	sc := &cliClient{
 		client: cl,
+		reader: bufio.NewReader(os.Stdin),
 		done:   make(chan struct{}),
 	}
-
-
-	fmt.Println("Subscribe to Topic foo")
-	id := wampire.NewId()
-	subs := &wampire.Subscribe{Request: id, Topic: wampire.Topic("foo")}
-	sc.client.Send(subs)
 
 	return sc
 }
 
-func (c *testClient) writeLoop() {
-	defer log.Println("Exiting client writeLoop")
-	tick := time.NewTicker(time.Second * 3)
+func (c *cliClient) processCli() {
+	fmt.Print("Enter text: ")
 	for {
-		select {
-		case <-tick.C:
-			pub := &wampire.Publish{Request: wampire.NewId(), Topic: wampire.Topic("foo")}
+		args, err := c.parseLine()
+		if err != nil {
+			log.Println("Error reading Cli line ", err)
+			continue
+		}
+		msg := strings.ToUpper(args[0])
+		log.Println("msg ", msg)
+		switch msg {
+		case "HELP":
+			fmt.Fprint(os.Stdout, "Commands: \n")
+			fmt.Fprint(os.Stdout, "  SUB Topic \n")
+			fmt.Fprint(os.Stdout, "  PUB Topic \n")
+			fmt.Fprint(os.Stdout, "  EXIT \n")
+		case "PUB":
+			if len(args) == 1 {
+				log.Println("PUB Void Topic")
+				continue
+			}
+			pub := &wampire.Publish{Request: wampire.NewId(), Topic: wampire.Topic(args[1])}
 			c.client.Send(pub)
-
-		case <-c.done:
-			tick.Stop()
-			log.Println("Closed Done from writeLoop")
+		case "SUB":
+			if len(args) == 1 {
+				log.Println("SUB Void Topic")
+				continue
+			}
+			id := wampire.NewId()
+			subs := &wampire.Subscribe{Request: id, Topic: wampire.Topic(args[1])}
+			c.client.Send(subs)
+		case "EXIT":
+			log.Println("Exit Cli client")
 			c.client.Terminate()
 			return
+		default:
+			log.Println("Not handled Command", args)
 		}
 	}
+}
+
+func (c *cliClient) parseLine() (args []string, err error) {
+	rawLine, err := c.reader.ReadString('\n')
+	if err != nil {
+		log.Println("Error reading Cli line ", err)
+		return
+	}
+	args = strings.Split(rawLine, "\n")
+	args = strings.Split(args[0], " ")
+
+	if args[0] == "" {
+		err = fmt.Errorf("Void message")
+		return
+	}
+
+	return
 }

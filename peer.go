@@ -81,12 +81,6 @@ func NewWebsockerPeer(conn *websocket.Conn) *webSocketPeer {
 }
 
 func (p *webSocketPeer) Send(msg Message) {
-/*	defer func() {
-		//hacky way to solve close of a closed channel
-		if r := recover(); r != nil {
-			log.Println("Recovered in close defer!!! ", r)
-		}
-	}()*/
 	p.send <- msg
 }
 

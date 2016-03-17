@@ -92,7 +92,7 @@ func (r *Router) handleSession(p *Session) {
 	defer r.unRegister(p)
 	defer func() {
 		for sid, topic := range p.subscriptions {
-			log.Println("Unsubscribe sid %s on topic %s", sid, topic)
+			log.Printf("Unsubscribe sid %s on topic %s \n", sid, topic)
 			u := &Unsubscribe{Request: NewId(), Subscription: sid}
 			r.broker.UnSubscribe(u, nil)
 		}

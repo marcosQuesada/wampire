@@ -15,7 +15,7 @@ type PeerClient struct {
 
 func NewPeerClient(host string) *PeerClient {
 	u := url.URL{Scheme: "ws", Host: host, Path: "/ws"}
-	log.Printf("connecting to %s", u.String())
+	log.Printf("connecting to %s \n", u.String())
 
 	conn, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
 	if err != nil {
@@ -92,8 +92,12 @@ func (p *PeerClient) route(msg Message) Message {
 		log.Println("Received Published ", msg)
 		return nil
 	case SUBSCRIBED:
-		log.Println("Received Subscribed ", msg)
+		log.Println("Received Subscribed, subscription ID: ", msg.(*Subscribed).Subscription)
 		p.subscriptions[msg.(*Subscribed).Subscription] = true
+		return nil
+	case UNSUBSCRIBED:
+		log.Println("Received UnSubscribed, subscription Req ID: ", msg.(*Unsubscribed).Request)
+		//delete(p.subscriptions, msg.(*Unsubscribed).)
 		return nil
 	case CALL:
 		response := p.handleCall(msg.(*Call))
