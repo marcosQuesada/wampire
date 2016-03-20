@@ -44,13 +44,14 @@ func (r *Router) Accept(p Peer) error {
 		var response Message
 		if r.authenticate(h) {
 			response = &Abort{
-				Id: h.Id,
+				//Id: h.Id,
 			}
 		}
 
 		//answer welcome
 		response = &Welcome{
-			Id: h.Id,
+			Id: NewId(),
+			Details: h.Details,
 		}
 		p.Send(response)
 

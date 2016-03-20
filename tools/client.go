@@ -80,7 +80,7 @@ func (c *cliClient) processCli() {
 				log.Println("PUB Void Topic")
 				continue
 			}
-			pub := &wampire.Publish{Request: wampire.NewId(), Topic: wampire.Topic(args[1])}
+			pub := &wampire.Publish{Request: wampire.NewId(), Options:map[string]interface{}{"foo":"bar"}, Topic: wampire.Topic(args[1] )}
 			c.client.Send(pub)
 		case "SUB":
 			if len(args) == 1 {

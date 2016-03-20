@@ -6,7 +6,7 @@ import (
 
 func TestJsonSerializer(t *testing.T) {
 	msg := &Hello{
-		Id:      NewId(),
+		Realm: URI("fooRealm"),
 		Details: map[string]interface{}{"foo": "bar"},
 	}
 
@@ -25,14 +25,75 @@ func TestJsonSerializer(t *testing.T) {
 	switch rcvMessage.(type) {
 	case *Hello:
 		h := rcvMessage.(*Hello)
-		if msg.Id != h.Id {
+/*		if msg.Id != h.Id {
 			t.Error("Message Ids don't match", msg.Id, h.Id)
-		}
+		}*/
 
 		if "bar" != h.Details["foo"] {
 			t.Error("Message Payload don't match")
 		}
 	default:
 		t.Error("Wrong type")
+	}
+}
+
+func TestWellEncodedHelloMessage(t *testing.T) {
+	// [HELLO, Details|dict]
+	// [WELCOME, Session|id, Details|dict]
+	// [ABORT, Details|dict, Reason|uri]
+	// [ERROR, REQUEST.Type|int, REQUEST.Request|id, Details|dict, Error|uri]
+	// [PUBLISH, Request|id, Options|dict, Topic|uri]
+}
+
+func TestMessageToList(t *testing.T) {
+	hello := &Hello{
+		Realm: URI("fooUri"),
+		Details: map[string]interface{}{"foo":"bar"},
+	}
+	s := &JsonSerializer{}
+	l := s.toList(hello)
+
+	if len(l) != 3 {
+		t.Errorf("Unexpected encoded message to list")
+	}
+
+	if l[0] != 1 {
+		t.Errorf("Unexpected encoded message to list")
+	}
+
+	if l[1] != URI("fooUri") {
+		t.Errorf("Unexpected encoded message to list")
+	}
+
+	d, ok := l[2].(map[string]interface{})
+	if !ok {
+		t.Errorf("Unexpected details type")
+	}
+	if d["foo"].(string) != "bar" {
+		t.Errorf("Unexpected encoded message to list")
+	}
+}
+
+func TestListToMessage(t *testing.T) {
+	list := []interface{}{
+		float64(1), URI("foo"), map[string]interface{}{"foo":"bar"},
+	}
+	s := &JsonSerializer{}
+	hl, err := s.toMessage(list)
+	if err!= nil {
+		t.Error("Error converting to message ", err)
+	}
+
+	h, ok := hl.(*Hello)
+	if !ok {
+		t.Error("Unexpected message type")
+	}
+
+	if h.Realm != URI("foo") {
+		t.Error("Unexpected message Realm")
+	}
+
+	if h.Details["foo"].(string) != "bar"{
+		t.Error("Unexpected message Details")
 	}
 }

@@ -2,6 +2,10 @@ package wampire
 
 import (
 	"encoding/json"
+	"log"
+	"reflect"
+	//"strings"
+	"fmt"
 	"github.com/mitchellh/mapstructure"
 )
 
@@ -23,19 +27,56 @@ func (s *nopSerializer) Deserialize(m []byte) Message {
 type JsonSerializer struct{}
 
 func (s *JsonSerializer) Serialize(m Message) ([]byte, error) {
-	t := m.MsgType()
+	payload := s.toList(m)
+	log.Println("Serialize msg %d to list %s", m.MsgType(), payload)
 
-	data := map[string]interface{}{"type": t, "msg": m}
-
-	return json.Marshal(&data)
+	return json.Marshal(payload)
 }
 
 func (s *JsonSerializer) Deserialize(data []byte) (Message, error) {
-	payload := map[string]interface{}{}
+	payload := []interface{}{}
 	err := json.Unmarshal(data, &payload)
+	if err != nil {
+		return nil, err
+	}
+	if len(payload) <= 1 {
+		panic(payload)
+	}
 
-	msg := MsgType(int(payload["type"].(float64))).NewMessage()
-	err = mapstructure.Decode(payload["msg"], msg)
+	return s.toMessage(payload)
+}
+
+func (s *JsonSerializer) toList(msg Message) []interface{}{
+	ret := []interface{}{int(msg.MsgType())}
+	val := reflect.ValueOf(msg).Elem()
+
+	for i:=0; i < val.Type().NumField(); i++ {
+/*		tag := val.Type().Field(i).Tag.Get("wamp")
+		log.Println("Tag is ", tag)
+		if strings.Contains(tag, "omitempty") || val.Field(i).Len() == 0 {
+			break
+		}*/
+		ret = append(ret, val.Field(i).Interface())
+	}
+	return ret
+}
+
+func (s *JsonSerializer) toMessage(l []interface{}) (Message, error) {
+	msgType := MsgType(int(l[0].(float64)))
+	msg := msgType.NewMessage()
+	if msg == nil {
+		return nil, fmt.Errorf("Unsupported message format")
+	}
+	val := reflect.ValueOf(msg).Elem()
+	typ := reflect.TypeOf(msg).Elem()
+	nl := l[1:]
+
+	msgMap := make(map[string]interface{}, len(nl))
+	for i:=0; i < val.Type().NumField(); i++ {
+		msgMap[typ.Field(i).Name] = nl[i]
+	}
+
+	err := mapstructure.Decode(msgMap, msg)
 
 	return msg, err
 }

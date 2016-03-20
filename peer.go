@@ -10,8 +10,8 @@ import (
 
 const (
 	writeWait      = 1 * time.Second
-	pongWait       = 10 * time.Second
-	pingPeriod     = (pongWait * 9) / 10
+	pongWait       = 30 * time.Second
+	pingPeriod     = (pongWait * 2) / 10
 	maxMessageSize = 1024 * 1024
 )
 
@@ -39,6 +39,7 @@ type Peer interface {
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:  4096,
 	WriteBufferSize: 4096,
+	Subprotocols:    []string{"wamp.2.json"},
 	CheckOrigin: func(r *http.Request) bool {
 		return true
 	},
@@ -128,6 +129,7 @@ func (p *webSocketPeer) writeLoop() {
 			}
 		//ping message
 		case <-ticker.C:
+			log.Println("PingPinging ")
 			if err := p.write(websocket.PingMessage, []byte{}); err != nil {
 				log.Println("Error writting Ping message", err)
 				return

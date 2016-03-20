@@ -9,7 +9,8 @@ import (
 type PeerClient struct {
 	Peer
 	subscriptions map[ID]bool
-	handlers      map[URI]Handler
+	msgHandlers   map[MsgType]Handler
+	uriHandlers   map[URI]Handler
 	exit          chan struct{}
 }
 
@@ -25,7 +26,8 @@ func NewPeerClient(host string) *PeerClient {
 	pc := &PeerClient{
 		Peer:          NewWebsockerPeer(conn),
 		subscriptions: make(map[ID]bool),
-		handlers:      make(map[URI]Handler),
+		msgHandlers:   make(map[MsgType]Handler),
+		uriHandlers:   make(map[URI]Handler),
 		exit:          make(chan struct{}),
 	}
 
@@ -36,8 +38,11 @@ func NewPeerClient(host string) *PeerClient {
 }
 
 //Not requires concurrent access
-func (p *PeerClient) Register(u URI, h Handler) {
-	p.handlers[u] = h
+func (p *PeerClient) RegisterURI(u URI, h Handler) {
+	p.uriHandlers[u] = h
+}
+func (p *PeerClient) Register(m MsgType, h Handler) {
+	p.msgHandlers[m] = h
 }
 
 func (p *PeerClient) Exit() {
@@ -46,7 +51,7 @@ func (p *PeerClient) Exit() {
 }
 
 func (p *PeerClient) sayHello() {
-	p.Send(&Hello{Id: NewId()})
+	p.Send(&Hello{Realm:"fooRealm", Details: map[string]interface{}{"foo":"bar"}}) //@TODO: Handle details
 }
 
 func (p *PeerClient) run() {
@@ -114,7 +119,7 @@ func (p *PeerClient) route(msg Message) Message {
 }
 
 func (p *PeerClient) handleCall(call *Call) Message {
-	handler, ok := p.handlers[call.Procedure]
+	handler, ok := p.uriHandlers[call.Procedure]
 	if !ok {
 		uri := "Client Handler not found"
 		log.Print(uri)

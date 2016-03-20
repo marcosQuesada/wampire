@@ -12,7 +12,7 @@ func TestDealerCall(t *testing.T) {
 		t.Error("Unexpected error registering handler", err)
 	}
 	call := &Call{
-		Request:   ID("1234"),
+		Request:   ID(1234),
 		Procedure: URI("foo"),
 		Arguments: []interface{}{"bar", 1},
 	}
@@ -22,7 +22,7 @@ func TestDealerCall(t *testing.T) {
 		t.Error("Error executing Call ", rsp.(*Error).Error)
 	}
 	response := rsp.(*Result)
-	if response.Request != ID("1234") {
+	if response.Request != ID(1234) {
 		t.Error("Unexpected Result response")
 	}
 	if response.Arguments[0] != "okiDoki" {
@@ -36,7 +36,7 @@ func TestDealerCall(t *testing.T) {
 func TestDealerDelegatedCallsConcept(t *testing.T) {
 	// External Peer, Registers external URI
 	reg := &Register{
-		Request:   ID("123456789"),
+		Request:   ID(123456789),
 		Procedure: URI("externalFoo"),
 	}
 	d := NewDealer()
@@ -65,7 +65,7 @@ func TestDealerDelegatedCallsConcept(t *testing.T) {
 	}(ep)
 
 	call := &Call{
-		Request:   ID("2222"),
+		Request:   ID(2222),
 		Procedure: URI("externalFoo"),
 	}
 

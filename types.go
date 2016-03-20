@@ -1,44 +1,43 @@
 package wampire
 
 import (
-	"github.com/nu7hatch/gouuid"
-	"log"
+	"sync/atomic"
 )
+
+// https://tools.ietf.org/html/draft-oberstet-hybi-tavendo-wamp-02
 
 const (
 	HELLO        MsgType = 1
 	WELCOME      MsgType = 2
 	ABORT        MsgType = 3
-	ERROR        MsgType = 10
-	PUBLISH      MsgType = 11
-	PUBLISHED    MsgType = 12
-	SUBSCRIBE    MsgType = 13
-	SUBSCRIBED   MsgType = 14
-	UNSUBSCRIBE  MsgType = 15
-	UNSUBSCRIBED MsgType = 16
-	CALL         MsgType = 20
-	RESULT       MsgType = 21
-	REGISTER     MsgType = 22
-	REGISTERED   MsgType = 23
-	UNREGISTER   MsgType = 24
-	UNREGISTERED MsgType = 25
+	ERROR        MsgType = 8
+	PUBLISH      MsgType = 16
+	PUBLISHED    MsgType = 17
+	SUBSCRIBE    MsgType = 32
+	SUBSCRIBED   MsgType = 33
+	UNSUBSCRIBE  MsgType = 34
+	UNSUBSCRIBED MsgType = 35
+	CALL         MsgType = 48
+	CANCEL       MsgType = 49
+	RESULT       MsgType = 50
+	REGISTER     MsgType = 64
+	REGISTERED   MsgType = 65
+	UNREGISTER   MsgType = 66
+	UNREGISTERED MsgType = 67
+	INVOCATION   MsgType = 68
+	INTERRUPT    MsgType = 69
+	YIELD        MsgType = 70
 )
 
-type ID string
+type ID uint64
 type PeerID string
 
+// atomic counter as message IDs
+var lastId uint64 = 0
 func NewId() ID {
-	idV4, err := uuid.NewV4()
-	if err != nil {
-		log.Println("error generating v4 ID:", err)
-	}
+	atomic.AddUint64(&lastId, 1)
 
-	id, err := uuid.NewV5(idV4, []byte("message"))
-	if err != nil {
-		log.Println("error generating v5 ID:", err)
-	}
-
-	return ID(id.String())
+	return ID(atomic.LoadUint64(&lastId))
 }
 
 type URI string
@@ -129,9 +128,48 @@ func (t MsgType) String() string {
 	}
 }
 
+/**
+       [1, "somerealm", {
+         "roles": {
+             "publisher": {},
+             "subscriber": {}
+         }
+       }]
+ */
+/**
+ Raw Wamp Hello Message
+[1, "somerealm", {
+	"roles": {
+		"caller": {
+			"features": {
+				"caller_identification": true,
+				"progressive_call_results": true
+			}
+		},
+		"callee": {
+			"features": {
+				"progressive_call_results": true
+			}
+		},
+		"publisher": {
+			"features": {
+				"subscriber_blackwhite_listing": true,
+				"publisher_exclusion": true,
+				"publisher_identification": true
+			}
+		},
+		"subscriber": {
+			"features": {
+				"publisher_identification": true
+			}
+		}
+	}
+}]
+
+*/
 // [HELLO, Details|dict]
 type Hello struct {
-	Id      ID
+	Realm   URI
 	Details map[string]interface{}
 }
 
@@ -139,6 +177,13 @@ func (msg *Hello) MsgType() MsgType {
 	return HELLO
 }
 
+/**
+       [2, 9129137332, {
+          "roles": {
+             "broker": {}
+          }
+       }]
+ */
 // [WELCOME, Session|id, Details|dict]
 type Welcome struct {
 	Id      ID
@@ -199,6 +244,9 @@ func (msg *Published) MsgType() MsgType {
 	return PUBLISHED
 }
 
+/**
+   [32, 713845233, {}, "com.myapp.mytopic1"]
+ */
 // [SUBSCRIBE, Request|id, Options|dict, Topic|uri]
 type Subscribe struct {
 	Request ID
@@ -210,6 +258,9 @@ func (msg *Subscribe) MsgType() MsgType {
 	return SUBSCRIBE
 }
 
+/**
+    [33, 713845233, 5512315355]
+ */
 // [SUBSCRIBED, SUBSCRIBE.Request|id, Subscription|id]
 type Subscribed struct {
 	Request      ID
@@ -220,6 +271,9 @@ func (msg *Subscribed) MsgType() MsgType {
 	return SUBSCRIBED
 }
 
+/**
+      [34, 85346237, 5512315355]
+ */
 // [UNSUBSCRIBE, Request|id, SUBSCRIBED.Subscription|id]
 type Unsubscribe struct {
 	Request      ID
@@ -230,6 +284,9 @@ func (msg *Unsubscribe) MsgType() MsgType {
 	return UNSUBSCRIBE
 }
 
+/**
+    [35, 85346237]
+ */
 // [UNSUBSCRIBED, UNSUBSCRIBE.Request|id]
 type Unsubscribed struct {
 	Request ID
