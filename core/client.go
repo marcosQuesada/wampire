@@ -1,4 +1,4 @@
-package wampire
+package core
 
 import (
 	"github.com/gorilla/websocket"
@@ -6,7 +6,7 @@ import (
 	"net/url"
 )
 
-type PeerClient struct {
+type Client struct {
 	Peer
 	subscriptions map[ID]bool
 	msgHandlers   map[MsgType]Handler
@@ -14,7 +14,7 @@ type PeerClient struct {
 	exit          chan struct{}
 }
 
-func NewPeerClient(host string) *PeerClient {
+func NewClient(host string) *Client {
 	u := url.URL{Scheme: "ws", Host: host, Path: "/ws"}
 	log.Printf("connecting to %s \n", u.String())
 
@@ -23,7 +23,7 @@ func NewPeerClient(host string) *PeerClient {
 		log.Fatal("dial:", err)
 	}
 
-	pc := &PeerClient{
+	pc := &Client{
 		Peer:          NewWebsockerPeer(conn),
 		subscriptions: make(map[ID]bool),
 		msgHandlers:   make(map[MsgType]Handler),
@@ -38,23 +38,23 @@ func NewPeerClient(host string) *PeerClient {
 }
 
 //Not requires concurrent access
-func (p *PeerClient) RegisterURI(u URI, h Handler) {
+func (p *Client) RegisterURI(u URI, h Handler) {
 	p.uriHandlers[u] = h
 }
-func (p *PeerClient) Register(m MsgType, h Handler) {
+func (p *Client) Register(m MsgType, h Handler) {
 	p.msgHandlers[m] = h
 }
 
-func (p *PeerClient) Exit() {
+func (p *Client) Exit() {
 	close(p.exit)
 	p.Terminate()
 }
 
-func (p *PeerClient) sayHello() {
+func (p *Client) sayHello() {
 	p.Send(&Hello{Realm:"fooRealm", Details: map[string]interface{}{"foo":"bar"}}) //@TODO: Handle details
 }
 
-func (p *PeerClient) run() {
+func (p *Client) run() {
 	defer log.Println("Exit Run loop")
 
 	for {
@@ -76,7 +76,7 @@ func (p *PeerClient) run() {
 	}
 }
 
-func (p *PeerClient) route(msg Message) Message {
+func (p *Client) route(msg Message) Message {
 	switch msg.MsgType() {
 	case WELCOME:
 		log.Println("Client received Welcome ", msg.(*Welcome).Id)
@@ -118,7 +118,7 @@ func (p *PeerClient) route(msg Message) Message {
 
 }
 
-func (p *PeerClient) handleCall(call *Call) Message {
+func (p *Client) handleCall(call *Call) Message {
 	handler, ok := p.uriHandlers[call.Procedure]
 	if !ok {
 		uri := "Client Handler not found"

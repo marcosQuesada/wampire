@@ -1,4 +1,4 @@
-package wampire
+package core
 
 import (
 	"fmt"
@@ -119,16 +119,20 @@ func (r *Router) handleSession(p *Session) {
 				//store subscription on session
 				//unsubscribe on session close
 				if s, ok := response.(*Subscribed); ok {
+					r.mutex.Lock()
 					p.subscriptions[s.Subscription] = msg.(*Subscribe).Topic
+					r.mutex.Unlock()
 				}
 			case *Unsubscribe:
-				log.Println("Received Subscribe")
+				log.Println("Received Unubscribe")
 				response = r.broker.UnSubscribe(msg, p)
 
 				// remove subscription from session
 				if _, ok := response.(*Unsubscribed); ok {
 					s := msg.(*Unsubscribe)
+					r.mutex.Lock()
 					delete(p.subscriptions, s.Subscription)
+					r.mutex.Unlock()
 				}
 			case *Call:
 				log.Println("Received Call")
@@ -186,6 +190,7 @@ func (r *Router) unRegister(p *Session) error {
 	return nil
 }
 
+// waitUntilVoid: waits until all sessions are closed
 func (r *Router) waitUntilVoid() chan struct{} {
 	void := make(chan struct{})
 	go func() {

@@ -1,4 +1,4 @@
-package wampire
+package main
 
 import (
 	"flag"
@@ -7,6 +7,7 @@ import (
 	"os/signal"
 	"runtime"
 	"syscall"
+	"github.com/marcosQuesada/wampire/core"
 )
 
 func main() {
@@ -20,16 +21,15 @@ func main() {
 	//Init logger
 	log.SetFlags(log.Ldate | log.Ltime | log.Lmicroseconds | log.Lshortfile)
 
-	f, err := os.OpenFile("server.log", os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
-	if err != nil {
-		log.Panic("error opening file: %v", err)
-	}
-	defer f.Close()
-
 	if *logOut {
+		f, err := os.OpenFile("server.log", os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+		if err != nil {
+			log.Panic("error opening file: %v", err)
+		}
+		defer f.Close()
 		log.SetOutput(f)
 	}
-	s := NewServer(*port)
+	s := core.NewServer(*port)
 	c := make(chan os.Signal, 1)
 
 	signal.Notify(

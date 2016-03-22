@@ -1,4 +1,4 @@
-package wampire
+package core
 
 import (
 	"sync/atomic"

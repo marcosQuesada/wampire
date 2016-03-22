@@ -4,7 +4,7 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
-	"github.com/marcosQuesada/wampire"
+	"github.com/marcosQuesada/wampire/core"
 	"log"
 	"os"
 	"os/signal"
@@ -43,13 +43,13 @@ func main() {
 }
 
 type cliClient struct {
-	client *wampire.PeerClient
+	client *core.Client
 	reader *bufio.Reader
 	done   chan struct{}
 }
 
 func NewCliClient(host string) *cliClient {
-	cl := wampire.NewPeerClient(host)
+	cl := core.NewClient(host)
 	sc := &cliClient{
 		client: cl,
 		reader: bufio.NewReader(os.Stdin),
@@ -80,15 +80,15 @@ func (c *cliClient) processCli() {
 				log.Println("PUB Void Topic")
 				continue
 			}
-			pub := &wampire.Publish{Request: wampire.NewId(), Options:map[string]interface{}{"foo":"bar"}, Topic: wampire.Topic(args[1] )}
+			pub := &core.Publish{Request: core.NewId(), Options:map[string]interface{}{"foo":"bar"}, Topic: core.Topic(args[1] )}
 			c.client.Send(pub)
 		case "SUB":
 			if len(args) == 1 {
 				log.Println("SUB Void Topic")
 				continue
 			}
-			id := wampire.NewId()
-			subs := &wampire.Subscribe{Request: id, Topic: wampire.Topic(args[1])}
+			id := core.NewId()
+			subs := &core.Subscribe{Request: id, Topic: core.Topic(args[1])}
 			c.client.Send(subs)
 		case "EXIT":
 			log.Println("Exit Cli client")

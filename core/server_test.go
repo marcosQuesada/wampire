@@ -1,4 +1,4 @@
-package wampire
+package core
 
 import (
 	"testing"
@@ -38,13 +38,13 @@ func TestServerConnectionHandling(t *testing.T) {
 }
 
 type testClient struct {
-	client  *PeerClient
+	client  *Client
 	rsp chan Message
 	done chan struct{}
 }
 
 func NewTestClient(host string) *testClient{
-	cl := NewPeerClient(host)
+	cl := NewClient(host)
 	sc := &testClient{
 		client: cl,
 		rsp: make(chan Message),

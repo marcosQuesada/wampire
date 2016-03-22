@@ -1,4 +1,4 @@
-package wampire
+package core
 
 import (
 	"fmt"
@@ -159,6 +159,7 @@ func (d *delegatedCall) externalCall(msg Message, p Peer) (Message, error) {
 	call := msg.(*Call)
 	log.Println("Delegated Call Request is ", call.Request, "dest peer ", d.peer.ID())
 	d.peer.Send(call)
+
 	//How to handle response!
 	msg, err := d.reqListener.RegisterAndWait(call.Request)
 	if err != nil {

@@ -1,4 +1,4 @@
-package wampire
+package core
 
 import (
 	"github.com/gorilla/websocket"
@@ -35,7 +35,6 @@ type Peer interface {
 	Terminate()
 }
 
-// @TODO: adjust buffers size!
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:  4096,
 	WriteBufferSize: 4096,
@@ -103,7 +102,7 @@ func (p *webSocketPeer) Terminate() {
 
 	p.conn.Close()
 	p.wg.Wait()
-	log.Println("EXITED peer ", p.id)
+	log.Println("webSocketPeer EXITED", p.id)
 }
 
 func (p *webSocketPeer) writeLoop() {
@@ -129,11 +128,11 @@ func (p *webSocketPeer) writeLoop() {
 			}
 		//ping message
 		case <-ticker.C:
-			log.Println("PingPinging ")
 			if err := p.write(websocket.PingMessage, []byte{}); err != nil {
 				log.Println("Error writting Ping message", err)
 				return
 			}
+		//@TODO: Handle sync on one chan
 		case <-p.closedConn:
 			log.Println("writeLoop closedConn chan close")
 			return
@@ -163,10 +162,7 @@ func (p *webSocketPeer) readLoop() {
 			log.Fatal("Fatal on deserialize ", err)
 
 		}
-		log.Println("Peer Message Type", message.MsgType())
-
 		p.receive <- message
-
 	}
 }
 
