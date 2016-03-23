@@ -2,6 +2,8 @@ package core
 
 import (
 	"sync/atomic"
+"log"
+"github.com/nu7hatch/gouuid"
 )
 
 // https://tools.ietf.org/html/draft-oberstet-hybi-tavendo-wamp-02
@@ -38,6 +40,20 @@ func NewId() ID {
 	atomic.AddUint64(&lastId, 1)
 
 	return ID(atomic.LoadUint64(&lastId))
+}
+
+func NewStringId() PeerID {
+	idV4, err := uuid.NewV4()
+	if err != nil {
+		log.Println("error generating v4 ID:", err)
+	}
+
+	id, err := uuid.NewV5(idV4, []byte("message"))
+	if err != nil {
+		log.Println("error generating v5 ID:", err)
+	}
+
+	return PeerID(id.String())
 }
 
 type URI string

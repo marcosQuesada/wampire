@@ -63,7 +63,7 @@ func NewWebsockerPeer(conn *websocket.Conn) *webSocketPeer {
 		exit:       make(chan struct{}),
 		closedConn: make(chan struct{}),
 		conn:       conn,
-		id:         PeerID(NewId()),
+		id:         NewStringId(),
 		wg:         &sync.WaitGroup{},
 	}
 	p.conn.SetReadLimit(maxMessageSize)
@@ -102,7 +102,7 @@ func (p *webSocketPeer) Terminate() {
 
 	p.conn.Close()
 	p.wg.Wait()
-	log.Println("webSocketPeer EXITED", p.id)
+	log.Println("webSocketPeer EXITED", string(p.id))
 }
 
 func (p *webSocketPeer) writeLoop() {
