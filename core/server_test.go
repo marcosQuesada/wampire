@@ -4,6 +4,8 @@ import (
 	"testing"
 	"time"
 "log"
+	"net/url"
+"github.com/gorilla/websocket"
 )
 
 func TestServerConnectionHandling(t *testing.T) {
@@ -15,38 +17,44 @@ func TestServerConnectionHandling(t *testing.T) {
 	tstClient := NewTestClient("localhost:8888")
 	go tstClient.readLoop()
 	time.Sleep(time.Millisecond * 100)
-	/*
-
-	tstClient.client.Send(&Hello{Id:NewId()})
+	tstClient.Send(&Hello{Realm: "foo", Details: map[string]interface{}{"foo": "bar"}})
 	r := <- tstClient.rsp
-	fmt.Println("Received from hello ", r)
 	if r.MsgType() != WELCOME {
 		t.Error("unexpected Hello response ", r.MsgType())
 	}
-	subs := &Subscribe{Request:ID("123"), Topic: Topic("foo")}
-	tstClient.client.Send(subs)
+	log.Println("Received from subscribe ", r)
+
+	subs := &Subscribe{Request:ID(123), Topic: Topic("foo")}
+	tstClient.Send(subs)
 	r = <- tstClient.rsp
 	if r.MsgType() != SUBSCRIBED {
 		t.Error("unexpected Hello response ", r.MsgType())
 	}
-	fmt.Println("Received from subscribe ", r)
-	*/
+	log.Println("Received from subscribe ", r)
 
-	close(tstClient.done)
-	//@TODO : Solve this test!
 	s.Terminate()
+	close(tstClient.done)
 }
 
 type testClient struct {
-	client  *Client
+	Peer
+	subscriptions map[ID]bool
 	rsp chan Message
 	done chan struct{}
 }
 
 func NewTestClient(host string) *testClient{
-	cl := NewClient(host)
+	u := url.URL{Scheme: "ws", Host: host, Path: "/ws"}
+
+	conn, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
+	if err != nil {
+		log.Fatal("dial:", err)
+	}
+
+	log.Printf("connected to %s \n", u.String())
+
 	sc := &testClient{
-		client: cl,
+		Peer: NewWebsockerPeer(conn),
 		rsp: make(chan Message),
 		done: make(chan struct{}),
 	}
@@ -59,11 +67,11 @@ func NewTestClient(host string) *testClient{
 func (c *testClient)readLoop() {
 	for {
 		select {
-		case msg, open := <- c.client.Receive():
+		case msg, open := <- c.Receive():
 			if !open {
 				return
 			}
-			log.Print("Client Receive msg", msg.MsgType())
+			log.Print("Client Receive msg ", msg.MsgType())
 
 			c.rsp <- msg
 		case <-c.done:
