@@ -13,6 +13,8 @@ const (
 	pongWait       = 30 * time.Second
 	pingPeriod     = (pongWait * 2) / 10
 	maxMessageSize = 1024 * 1024
+	CLIENT	= "peer on client mode"
+	SERVER = "peer on server mode (enable pinging)"
 )
 
 type Session struct {
@@ -55,7 +57,7 @@ type webSocketPeer struct {
 	wg         *sync.WaitGroup
 }
 
-func NewWebsockerPeer(conn *websocket.Conn) *webSocketPeer {
+func NewWebsockerPeer(conn *websocket.Conn, mode string) *webSocketPeer {
 	p := &webSocketPeer{
 		serializer: &JsonSerializer{},
 		receive:    make(chan Message),
@@ -67,15 +69,32 @@ func NewWebsockerPeer(conn *websocket.Conn) *webSocketPeer {
 		wg:         &sync.WaitGroup{},
 	}
 	p.conn.SetReadLimit(maxMessageSize)
-	p.conn.SetReadDeadline(time.Now().Add(pongWait))
+
 	p.conn.SetPingHandler(func(string) error {
-		log.Println("Received Ping, renewing deadline")
+		log.Println("Received Ping")
+
+		if err := p.write(websocket.PongMessage, []byte{}); err != nil {
+			log.Println("Error writting Ping message", err)
+			return nil
+		}
+
+		log.Println("Sended PONG")
+		return nil
+	})
+	p.conn.SetPongHandler(func(string) error {
+		log.Println("Received PONG, renewing deadline ")
 		p.conn.SetReadDeadline(time.Now().Add(pongWait))
 		return nil
 	})
+
 	p.wg.Add(2)
 	go p.writeLoop()
 	go p.readLoop()
+	if mode == SERVER {
+
+		p.wg.Add(1)
+		go p.pingLoop()
+	}
 
 	return p
 }
@@ -106,9 +125,7 @@ func (p *webSocketPeer) Terminate() {
 }
 
 func (p *webSocketPeer) writeLoop() {
-	ticker := time.NewTicker(pingPeriod)
 	defer func() {
-		ticker.Stop()
 		p.wg.Done()
 	}()
 
@@ -126,16 +143,30 @@ func (p *webSocketPeer) writeLoop() {
 			if err := p.write(websocket.TextMessage, data); err != nil {
 				return
 			}
-		//ping message
-		case <-ticker.C:
-			if err := p.write(websocket.PingMessage, []byte{}); err != nil {
-				log.Println("Error writting Ping message", err)
-				return
-			}
 		//@TODO: Handle sync on one chan
 		case <-p.closedConn:
 			log.Println("writeLoop closedConn chan close")
 			return
+		case <-p.exit:
+			log.Println("writeLoop exit chan close")
+			return
+		}
+	}
+}
+
+func (p *webSocketPeer) pingLoop() {
+	ticker := time.NewTicker(pingPeriod)
+	defer ticker.Stop()
+	defer p.wg.Done()
+
+	for{
+		select {
+		case <-ticker.C:
+			log.Println("Sending PING")
+			if err := p.write(websocket.PingMessage, []byte{}); err != nil {
+				log.Println("Error writting Ping message", err)
+				return
+			}
 		case <-p.exit:
 			log.Println("writeLoop exit chan close")
 			return

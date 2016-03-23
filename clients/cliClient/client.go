@@ -34,7 +34,7 @@ func NewCliClient(host string) *cliClient {
 	log.Printf("connected to %s \n", u.String())
 
 	pc := &cliClient{
-		Peer:          core.NewWebsockerPeer(conn),
+		Peer:          core.NewWebsockerPeer(conn, core.CLIENT),
 		subscriptions: make(map[core.ID]bool),
 		msgHandlers:   make(map[core.MsgType]core.Handler),
 		uriHandlers:   make(map[core.URI]core.Handler),

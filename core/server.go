@@ -68,6 +68,6 @@ func (s *Server) serveWs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	p := NewWebsockerPeer(ws)
+	p := NewWebsockerPeer(ws, SERVER)
 	s.router.Accept(p)
 }

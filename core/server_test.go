@@ -54,7 +54,7 @@ func NewTestClient(host string) *testClient{
 	log.Printf("connected to %s \n", u.String())
 
 	sc := &testClient{
-		Peer: NewWebsockerPeer(conn),
+		Peer: NewWebsockerPeer(conn, CLIENT),
 		rsp: make(chan Message),
 		done: make(chan struct{}),
 	}
