@@ -19,6 +19,7 @@ const (
 	SUBSCRIBED   MsgType = 33
 	UNSUBSCRIBE  MsgType = 34
 	UNSUBSCRIBED MsgType = 35
+	EVENT        MsgType = 36
 	CALL         MsgType = 48
 	CANCEL       MsgType = 49
 	RESULT       MsgType = 50
@@ -88,6 +89,8 @@ func (t MsgType) NewMessage() Message {
 		return new(Unsubscribe)
 	case UNSUBSCRIBED:
 		return new(Unsubscribed)
+	case EVENT:
+		return new(Event)
 	case CALL:
 		return new(Call)
 	case RESULT:
@@ -127,6 +130,8 @@ func (t MsgType) String() string {
 		return "UNSUBSCRIBE"
 	case UNSUBSCRIBED:
 		return "UNSUBSCRIBED"
+	case EVENT:
+		return "EVENT"
 	case CALL:
 		return "CALL"
 	case RESULT:
@@ -310,6 +315,22 @@ type Unsubscribed struct {
 
 func (msg *Unsubscribed) MsgType() MsgType {
 	return UNSUBSCRIBED
+}
+
+// [EVENT, SUBSCRIBED.Subscription|id, PUBLISHED.Publication|id, Details|dict]
+// [EVENT, SUBSCRIBED.Subscription|id, PUBLISHED.Publication|id, Details|dict, PUBLISH.Arguments|list]
+// [EVENT, SUBSCRIBED.Subscription|id, PUBLISHED.Publication|id, Details|dict, PUBLISH.Arguments|list,
+//     PUBLISH.ArgumentsKw|dict]
+type Event struct {
+	Subscription ID
+	Publication  ID
+	Details      map[string]interface{}
+	Arguments    []interface{}          `wamp:"omitempty"`
+	ArgumentsKw  map[string]interface{} `wamp:"omitempty"`
+}
+
+func (msg *Event) MsgType() MsgType {
+	return EVENT
 }
 
 // [CALL, Request|id, Options|dict, Procedure|uri]

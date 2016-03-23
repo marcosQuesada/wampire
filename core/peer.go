@@ -71,7 +71,7 @@ func NewWebsockerPeer(conn *websocket.Conn, mode string) *webSocketPeer {
 	p.conn.SetReadLimit(maxMessageSize)
 
 	p.conn.SetPingHandler(func(string) error {
-		log.Println("Received Ping")
+		log.Println("Received Ping ", p.id)
 
 		if err := p.write(websocket.PongMessage, []byte{}); err != nil {
 			log.Println("Error writting Ping message", err)
@@ -82,7 +82,7 @@ func NewWebsockerPeer(conn *websocket.Conn, mode string) *webSocketPeer {
 		return nil
 	})
 	p.conn.SetPongHandler(func(string) error {
-		log.Println("Received PONG, renewing deadline ")
+		log.Println("Received PONG, renewing deadline ", p.id)
 		p.conn.SetReadDeadline(time.Now().Add(pongWait))
 		return nil
 	})
@@ -162,7 +162,7 @@ func (p *webSocketPeer) pingLoop() {
 	for{
 		select {
 		case <-ticker.C:
-			log.Println("Sending PING")
+			log.Println("Sending PING ", p.id)
 			if err := p.write(websocket.PingMessage, []byte{}); err != nil {
 				log.Println("Error writting Ping message", err)
 				return

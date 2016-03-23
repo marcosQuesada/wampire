@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+   <meta charset="UTF-8">
+   <title>AutobahnJS PubSub Publisher</title>
+</head>
+<body>
+
+   <h1>AutobahnJS PubSub Publisher</h1>
+
+   <p>
+      Open the JavaScript console to watch output.
+   </p>
+
+   <button id="send">Publish</button>
+
+   <script type="text/javascript" src=" js/autobahn.js"></script>
+   <script>
+      // http://autobahn.ws/js/reference.html
+      // https://github.com/crossbario/autobahn-js
+      // http://crossbar.io/docs/WebSocket-Options/
+
+      AUTOBAHN_DEBUG = true;
+
+      // Set up WAMP connection to router
+      var connection = new autobahn.Connection({
+         // url: wsuri,
+         transports: [
+         {
+            'type': 'websocket',
+   	        'url': 'ws://localhost:8888/ws',
+            'options': {
+	           //"enable_webstatus": false,
+     	 	   "max_frame_size": 1048576,
+      	       "max_message_size": 1048576,
+      		   "auto_fragment_size": 65536,
+      		   //"fail_by_drop": true,
+      		   "open_handshake_timeout": 2500,
+      		   "close_handshake_timeout": 1000,
+      		   "auto_ping_interval": 1000,
+      		   "auto_ping_timeout": 10000,
+      		   "auto_ping_size": 4,
+      		   "require_websocket_subprotocol": "wamp.2.json"
+   	        }
+         }
+      ],
+      realm: ''
+   });
+      // Set up 'onopen' handler
+      connection.onopen = function (session) {
+         console.log("onopen");
+         // Start publishing events
+         var counter = 0;
+
+         document.getElementById("send").addEventListener("click", function() {
+            console.log("publishing to topic 'com.myapp.topic2': " + counter);
+            session.publish('com.myapp.topic2', [counter], {}, {acknowledge: true}).then(function(publication) {
+                  console.log("publication", publication);
+               },
+               function(error) {
+                  console.log("publication error ", error)
+               });
+            counter += 1;
+         })
+
+         session.subscribe('com.myapp.topic2', function() {
+            console.log("received text", arguments);
+         })
+
+      };
+
+
+      connection.onclose = function() {
+         console.log("close", arguments);
+      }
+
+      // Open connection
+      connection.open();
+   </script>
+
+</body>
+</html>

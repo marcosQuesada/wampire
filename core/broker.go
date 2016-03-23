@@ -151,8 +151,17 @@ func (b *defaultBroker) Publish(msg Message, p Peer) Message {
 		}
 
 		if peer.ID() != p.ID() {
+			// Forward Publish to all topic subscriptors as event
+			publish := msg.(*Publish)
+			event := &Event{
+				Subscription: subscriptionId,
+				Publication:  publish.Request,
+				Details: publish.Options,
+				Arguments: publish.Arguments,
+				ArgumentsKw: publish.ArgumentsKw,
+			}
 			//send message in a non blocking way
-			go peer.Send(msg)
+			go peer.Send(event)
 		}
 	}
 

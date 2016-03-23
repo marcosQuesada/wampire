@@ -8,6 +8,10 @@ import (
 	"runtime"
 	"syscall"
 	"github.com/marcosQuesada/wampire/core"
+"github.com/gorilla/mux"
+	"fmt"
+	"net"
+"net/http"
 )
 
 func main() {
@@ -47,6 +51,22 @@ func main() {
 		s.Terminate()
 	}()
 
-	//Server Run
-	s.Run()
+	//Server Statics and Ws
+	log.Println("Booting server on port ", *port)
+	router := mux.NewRouter().StrictSlash(true)
+	router.HandleFunc("/ws", s.ServeWs)
+	htmlClient := http.StripPrefix("/", http.FileServer(http.Dir("clients/htmlClient/")))
+	router.PathPrefix("/").Handler(htmlClient)
+
+	ln, err := net.Listen("tcp", fmt.Sprintf(":%d", *port))
+	if err != nil {
+		log.Println("Server Error Listening ", err)
+		return
+	}
+
+	err = http.Serve(ln, router)
+	if err != nil {
+		log.Panic("Server Error Serving ", err)
+		return
+	}
 }

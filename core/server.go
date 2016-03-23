@@ -29,7 +29,7 @@ func (s *Server) Run() {
 	log.Println("Server Starting")
 
 	router := mux.NewRouter().StrictSlash(true)
-	router.HandleFunc("/ws", s.serveWs)
+	router.HandleFunc("/ws", s.ServeWs)
 
 	port := fmt.Sprintf(":%d", s.port)
 
@@ -54,7 +54,7 @@ func (s *Server) Terminate() {
 	os.Exit(0)
 }
 
-func (s *Server) serveWs(w http.ResponseWriter, r *http.Request) {
+func (s *Server) ServeWs(w http.ResponseWriter, r *http.Request) {
 	log.Println("Serve websocket connection")
 	if r.Method != "GET" {
 		http.Error(w, "Method not allowed", 405)
