@@ -12,6 +12,9 @@ const (
 	HELLO        MsgType = 1
 	WELCOME      MsgType = 2
 	ABORT        MsgType = 3
+	CHALLENGE    MsgType = 4
+	AUTHENTICATE MsgType = 5
+	GOODBYE      MsgType = 6
 	ERROR        MsgType = 8
 	PUBLISH      MsgType = 16
 	PUBLISHED    MsgType = 17
@@ -75,6 +78,12 @@ func (t MsgType) NewMessage() Message {
 		return new(Welcome)
 	case ABORT:
 		return new(Abort)
+	case CHALLENGE:
+		return new(Challenge)
+	case AUTHENTICATE:
+		return new(Authenticate)
+	case GOODBYE:
+		return new(Goodbye)
 	case ERROR:
 		return new(Error)
 	case PUBLISH:
@@ -103,6 +112,12 @@ func (t MsgType) NewMessage() Message {
 		return new(Unregister)
 	case UNREGISTERED:
 		return new(Unregistered)
+	case INVOCATION:
+		return new(Invocation)
+	case INTERRUPT:
+		return new(Interrupt)
+	case YIELD:
+		return new(Yield)
 	default:
 		return nil
 	}
@@ -144,6 +159,12 @@ func (t MsgType) String() string {
 		return "UNREGISTER"
 	case UNREGISTERED:
 		return "UNREGISTERED"
+	case INVOCATION:
+		return "INVOCATION"
+	case INTERRUPT:
+		return "INTERRUPT"
+	case YIELD:
+		return "YIELD"
 	default:
 		panic("Invalid message type")
 	}
@@ -224,6 +245,36 @@ type Abort struct {
 
 func (msg *Abort) MsgType() MsgType {
 	return ABORT
+}
+
+// [CHALLENGE, AuthMethod|string, Extra|dict]
+type Challenge struct {
+	AuthMethod string
+	Extra      map[string]interface{}
+}
+
+func (msg *Challenge) MsgType() MsgType {
+	return CHALLENGE
+}
+
+// [AUTHENTICATE, Signature|string, Extra|dict]
+type Authenticate struct {
+	Signature string
+	Extra     map[string]interface{}
+}
+
+func (msg *Authenticate) MsgType() MsgType {
+	return AUTHENTICATE
+}
+
+// [GOODBYE, Details|dict, Reason|uri]
+type Goodbye struct {
+	Details map[string]interface{}
+	Reason  URI
+}
+
+func (msg *Goodbye) MsgType() MsgType {
+	return GOODBYE
 }
 
 // [ERROR, REQUEST.Type|int, REQUEST.Request|id, Details|dict, Error|uri]
@@ -399,4 +450,53 @@ type Unregistered struct {
 
 func (msg *Unregistered) MsgType() MsgType {
 	return UNREGISTERED
+}
+
+// [INVOCATION, Request|id, REGISTERED.Registration|id, Details|dict]
+// [INVOCATION, Request|id, REGISTERED.Registration|id, Details|dict, CALL.Arguments|list]
+// [INVOCATION, Request|id, REGISTERED.Registration|id, Details|dict, CALL.Arguments|list, CALL.ArgumentsKw|dict]
+type Invocation struct {
+	Request      ID
+	Registration ID
+	Details      map[string]interface{}
+	Arguments    []interface{}          `wamp:"omitempty"`
+	ArgumentsKw  map[string]interface{} `wamp:"omitempty"`
+}
+
+func (msg *Invocation) MsgType() MsgType {
+	return INVOCATION
+}
+
+// [YIELD, INVOCATION.Request|id, Options|dict]
+// [YIELD, INVOCATION.Request|id, Options|dict, Arguments|list]
+// [YIELD, INVOCATION.Request|id, Options|dict, Arguments|list, ArgumentsKw|dict]
+type Yield struct {
+	Request     ID
+	Options     map[string]interface{}
+	Arguments   []interface{}          `wamp:"omitempty"`
+	ArgumentsKw map[string]interface{} `wamp:"omitempty"`
+}
+
+func (msg *Yield) MsgType() MsgType {
+	return YIELD
+}
+
+// [CANCEL, CALL.Request|id, Options|dict]
+type Cancel struct {
+	Request ID
+	Options map[string]interface{}
+}
+
+func (msg *Cancel) MsgType() MsgType {
+	return CANCEL
+}
+
+// [INTERRUPT, INVOCATION.Request|id, Options|dict]
+type Interrupt struct {
+	Request ID
+	Options map[string]interface{}
+}
+
+func (msg *Interrupt) MsgType() MsgType {
+	return INTERRUPT
 }

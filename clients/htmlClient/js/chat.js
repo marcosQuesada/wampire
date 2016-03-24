@@ -106,9 +106,9 @@ function connect() {
       		   "fail_by_drop": true,
       		   "open_handshake_timeout": 2500,
       		   "close_handshake_timeout": 1000,
-      		   "auto_ping_interval": 1000,
+/*      		   "auto_ping_interval": 1000,
       		   "auto_ping_timeout": 5000,
-      		   "auto_ping_size": 4
+      		   "auto_ping_size": 4*/
    	        }
          }
       ],
