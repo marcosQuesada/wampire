@@ -31,7 +31,7 @@ func TestServerConnectionHandling(t *testing.T) {
 		t.Error("unexpected Hello response ", r.MsgType())
 	}
 	log.Println("Received from subscribe ", r)
-
+	time.Sleep(time.Second * 1)
 	s.Terminate()
 	close(tstClient.done)
 }

@@ -3,7 +3,6 @@ package core
 import (
 	"github.com/gorilla/websocket"
 	"log"
-	"net/http"
 	"sync"
 	"time"
 )
@@ -13,37 +12,15 @@ const (
 	pongWait       = 30 * time.Second
 	pingPeriod     = (pongWait * 2) / 10
 	maxMessageSize = 1024 * 1024
-	CLIENT	= "peer on client mode"
-	SERVER = "peer on server mode (enable pinging)"
+	CLIENT         = "peer on client mode"
+	SERVER         = "peer on server mode (enable pinging)"
 )
 
-type Session struct {
-	Peer
-	subscriptions map[ID]Topic
-}
-
-func NewSession(p Peer) *Session {
-	return &Session{
-		Peer: p,
-		subscriptions: make(map[ID]Topic),
-	}
-}
-
 type Peer interface {
-	Send(Message)
-	Request(Message) Message
-	Receive() chan Message
 	ID() PeerID
+	Send(Message)
+	Receive() chan Message
 	Terminate()
-}
-
-var upgrader = websocket.Upgrader{
-	ReadBufferSize:  4096,
-	WriteBufferSize: 4096,
-	Subprotocols:    []string{"wamp.2.json"},
-	CheckOrigin: func(r *http.Request) bool {
-		return true
-	},
 }
 
 type webSocketPeer struct {
@@ -107,9 +84,6 @@ func (p *webSocketPeer) Receive() chan Message {
 	return p.receive
 }
 
-func (p *webSocketPeer) Request(msg Message) Message {
-	return &Error{}
-}
 func (p *webSocketPeer) ID() PeerID {
 	return p.id
 }
@@ -159,7 +133,7 @@ func (p *webSocketPeer) pingLoop() {
 	defer ticker.Stop()
 	defer p.wg.Done()
 
-	for{
+	for {
 		select {
 		case <-ticker.C:
 			log.Println("Sending PING ", p.id)
@@ -201,4 +175,34 @@ func (p *webSocketPeer) write(mt int, message []byte) error {
 	p.conn.SetWriteDeadline(time.Now().Add(writeWait))
 
 	return p.conn.WriteMessage(mt, message)
+}
+
+/*
+	Internal Peer Concept
+	To be used as callee from local procedures
+ */
+type internalPeer struct {
+	receive chan Message
+}
+
+func NewInternalPeer() *internalPeer{
+	return &internalPeer{
+		receive: make(chan Message),
+	}
+}
+
+func (p *internalPeer) Send(msg Message) {
+	p.receive <- msg
+}
+
+func (p *internalPeer) Receive() chan Message {
+	return p.receive
+}
+
+func (p *internalPeer) ID() PeerID {
+	return PeerID("internal")
+}
+
+func (p *internalPeer) Terminate() {
+
 }

@@ -8,11 +8,20 @@ import (
 	"net/http"
 	"os"
 	"time"
+"github.com/gorilla/websocket"
 )
 
 type Server struct {
 	port   int
 	router *Router
+}
+var upgrader = websocket.Upgrader{
+	ReadBufferSize:  4096,
+	WriteBufferSize: 4096,
+	Subprotocols:    []string{"wamp.2.json"},
+	CheckOrigin: func(r *http.Request) bool {
+		return true
+	},
 }
 
 func NewServer(port int) *Server {

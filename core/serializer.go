@@ -2,9 +2,7 @@ package core
 
 import (
 	"encoding/json"
-	"log"
 	"reflect"
-	//"strings"
 	"fmt"
 	"github.com/mitchellh/mapstructure"
 )
@@ -28,7 +26,6 @@ type JsonSerializer struct{}
 
 func (s *JsonSerializer) Serialize(m Message) ([]byte, error) {
 	payload := s.toList(m)
-	log.Println("Serialize msg %d to list %s", m.MsgType(), payload)
 
 	return json.Marshal(payload)
 }
@@ -50,6 +47,7 @@ func (s *JsonSerializer) toList(msg Message) []interface{}{
 	ret := []interface{}{int(msg.MsgType())}
 	val := reflect.ValueOf(msg).Elem()
 
+	// @TODO: Handle tag annotations
 	for i:=0; i < val.Type().NumField(); i++ {
 /*		tag := val.Type().Field(i).Tag.Get("wamp")
 		log.Println("Tag is ", tag)

@@ -19,6 +19,7 @@ type Router struct {
 type Authenticator func(Message) bool
 
 func NewRouter() *Router {
+
 	return &Router{
 		sessions: make(map[PeerID]*Session),
 		broker:   NewBroker(),
@@ -26,6 +27,8 @@ func NewRouter() *Router {
 		exit:     make(chan struct{}),
 		mutex:    &sync.RWMutex{},
 	}
+
+
 }
 
 func (r *Router) Accept(p Peer) error {
@@ -93,7 +96,7 @@ func (r *Router) handleSession(p *Session) {
 	defer r.unRegister(p)
 	defer func() {
 		for sid, topic := range p.subscriptions {
-			log.Printf("Unsubscribe sid %s on topic %s \n", sid, topic)
+			log.Printf("Unsubscribe sid %d on topic %s \n", sid, topic)
 			u := &Unsubscribe{Request: NewId(), Subscription: sid}
 			r.broker.UnSubscribe(u, nil)
 		}
@@ -109,6 +112,9 @@ func (r *Router) handleSession(p *Session) {
 
 			var response Message
 			switch msg.(type) {
+			case *Goodbye:
+				log.Println("Received Goodbye")
+				// exit handler
 			case *Publish:
 				log.Println("Received Publish")
 				response = r.broker.Publish(msg, p)
@@ -137,17 +143,28 @@ func (r *Router) handleSession(p *Session) {
 			case *Call:
 				log.Println("Received Call")
 				response = r.dealer.Call(msg, p)
+			case *Cancel:
+				log.Println("Received Cancel, forward this to requester on dealer ")
+				r.dealer.Cancel(msg, p)
 
+			case *Yield:
+				log.Println("Received Yield, forward this to dealer ")
+				r.dealer.Yield(msg, p)
+
+			//@TODO: Communication between wamp nodes
+			case *Invocation:
+				log.Println("Received Invocation, execute on callee")
+			//	r.dealer.Invocation(msg, p)
+			case *Result:
+				log.Println("Received Result, Unexpected message on wamp router")
+			//r.dealer.ExternalResult(msg, p)
 			// First approach on remote Handlers, used as result callback
 			case *Register:
 				log.Println("Received Register")
-				response = r.dealer.RegisterExternalHandler(msg, p)
+				response = r.dealer.Register(msg, p)
 			case *Unregister:
 				log.Println("Received Unregister")
-				response = r.dealer.UnregisterExternalHandler(msg, p)
-			case *Result:
-				log.Println("Received External Result, forward this to requester on dealer ")
-				r.dealer.ExternalResult(msg, p)
+				response = r.dealer.Unregister(msg, p)
 			default:
 				log.Println("Session unhandled message ", msg.MsgType())
 				response = &Error{

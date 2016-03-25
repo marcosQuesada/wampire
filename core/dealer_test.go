@@ -1,26 +1,66 @@
 package core
 
 import (
+	"log"
 	"testing"
+	"time"
 )
 
-func TestDealerCall(t *testing.T) {
+func TestDealerCallOnInternalPeer(t *testing.T) {
 	d := NewDealer()
 	fp := NewFakePeer(PeerID("123"))
-	err := d.Register(URI("foo"), fooHandler)
+	s := NewSession(fp)
+	go sessionLoop(s)
+
+	i := NewInternalPeer()
+	si := NewSession(i)
+
+	// Consume internal session Receive channel
+	go func(exp *Session) {
+		for {
+			select {
+			case msg := <-exp.Receive():
+				d.Yield(msg, s)
+			}
+		}
+	}(si)
+
+	uri := URI("foo")
+	err := si.register(uri, fooHandler)
 	if err != nil {
 		t.Error("Unexpected error registering handler", err)
 	}
+	msg := d.Register(&Register{Request: ID(123), Procedure: uri}, si)
+	if msg.MsgType() != REGISTERED {
+		t.Error("Unexpected Register response ", msg.MsgType())
+	}
+
+	//give enough time to register handler
+	time.Sleep(time.Millisecond * 200)
+
+	// check uri for registration on session
+	registeredUri, err := si.uriFromRegistration(msg.(*Registered).Registration)
+	if err != nil {
+		t.Error("Error looking up uriFromRegistration ", err)
+	}
+
+	if registeredUri != URI("foo") {
+		t.Error("Unexpected registred URI")
+	}
+
+	// make Call
 	call := &Call{
 		Request:   ID(1234),
 		Procedure: URI("foo"),
 		Arguments: []interface{}{"bar", 1},
 	}
-
-	rsp := d.Call(call, fp)
+	rsp := d.Call(call, s)
 	if rsp.MsgType() == ERROR {
 		t.Error("Error executing Call ", rsp.(*Error).Error)
+		return
 	}
+
+	// check response
 	response := rsp.(*Result)
 	if response.Request != ID(1234) {
 		t.Error("Unexpected Result response")
@@ -28,75 +68,26 @@ func TestDealerCall(t *testing.T) {
 	if response.Arguments[0] != "okiDoki" {
 		t.Error("Unexpected Arguments Result response")
 	}
+	log.Println("Response ", response)
+}
+
+func sessionLoop(s *Session) {
+	for {
+		select {
+		case msg := <-s.Receive():
+			log.Println("client session receive ", msg.MsgType(), s.ID())
+		}
+	}
 }
 
 // A peer requests Register its own handler as a regular uri
 // when someone calls this uri forwards call to uri peer owner,
 // handle result and forward it to requester peer
-func TestDealerDelegatedCallsConcept(t *testing.T) {
-	// External Peer, Registers external URI
-	reg := &Register{
-		Request:   ID(123456789),
-		Procedure: URI("externalFoo"),
-	}
-	d := NewDealer()
-	ep := NewFakePeer(PeerID("6666666"))
-	response := d.RegisterExternalHandler(reg, ep)
-	if response.MsgType() != REGISTERED {
-		t.Error("Unexpected response type ", response.MsgType())
-	}
 
-	// simulates to handle registered URI and return result
-	go func(exp Peer) {
-		for {
-			select {
-			case msg := <-exp.Receive():
-				// External result forward using listners
-				d.ExternalResult(msg, exp)
-
-			case msg := <-exp.(*fakePeer).snd:
-				rsp, err := externalHandler(msg, exp)
-				if err != nil {
-					t.Error("Error executing ", err)
-				}
-				exp.(*fakePeer).rcv <- rsp
-			}
-		}
-	}(ep)
-
-	call := &Call{
-		Request:   ID(2222),
-		Procedure: URI("externalFoo"),
-	}
-
-	//regular peer calls external URI
-	p := NewFakePeer(PeerID("123"))
-	rsp := d.Call(call, p)
-	if rsp.MsgType() == ERROR {
-		t.Error("Error executing Call ", rsp.(*Error).Error)
-	}
-
-	if rsp.MsgType() != RESULT {
-		t.Error("Unexpected msg type ", rsp.MsgType())
-	}
-
-	if rsp.(*Result).Arguments[0] != "external" {
-		t.Error("Unexpected result content")
-	}
-}
-
-func fooHandler(msg Message, p Peer) (Message, error) {
-	call := msg.(*Call)
-	return &Result{
-		Request:   call.Request,
+func fooHandler(msg Message) (Message, error) {
+	inv := msg.(*Invocation)
+	return &Yield{
+		Request:   inv.Request,
 		Arguments: []interface{}{"okiDoki"},
-	}, nil
-}
-
-func externalHandler(msg Message, p Peer) (Message, error) {
-	call := msg.(*Call)
-	return &Result{
-		Request:   call.Request,
-		Arguments: []interface{}{"external"},
 	}, nil
 }

@@ -6,14 +6,14 @@ import (
 )
 
 type Broker interface {
-	Subscribe(Message, Peer) Message
-	UnSubscribe(Message, Peer) Message
-	Publish(Message, Peer) Message
+	Subscribe(Message, *Session) Message
+	UnSubscribe(Message, *Session) Message
+	Publish(Message, *Session) Message
 }
 
 type defaultBroker struct {
 	topics              map[Topic]map[ID]bool   //maps topics to subscriptions
-	subscriptions       map[ID]Peer             //a peer may have many subscriptions
+	subscriptions       map[ID]*Session             //a peer may have many subscriptions
 	topicPeers          map[Topic]map[PeerID]ID //maps peers by topic on subscription
 	topicBySubscription map[ID]Topic            // topic from Subscription ID
 	mutex               *sync.RWMutex
@@ -22,14 +22,14 @@ type defaultBroker struct {
 func NewBroker() *defaultBroker {
 	return &defaultBroker{
 		topics:              make(map[Topic]map[ID]bool),
-		subscriptions:       make(map[ID]Peer),
+		subscriptions:       make(map[ID]*Session),
 		topicPeers:          make(map[Topic]map[PeerID]ID),
 		topicBySubscription: make(map[ID]Topic),
 		mutex:               &sync.RWMutex{},
 	}
 }
 
-func (b *defaultBroker) Subscribe(msg Message, p Peer) Message {
+func (b *defaultBroker) Subscribe(msg Message, s *Session) Message {
 	b.mutex.Lock()
 	defer b.mutex.Unlock()
 
@@ -47,18 +47,21 @@ func (b *defaultBroker) Subscribe(msg Message, p Peer) Message {
 	}
 
 	//check if subscriptor is already register to topic
-	if subs, ok := b.topicPeers[subscribe.Topic][p.ID()]; ok {
-		log.Println("Peer already subscribed on subscription ", subs)
+	if subs, ok := b.topicPeers[subscribe.Topic][s.ID()]; ok {
+		log.Println("Session already subscribed on subscription ", subs)
 		return &Error{
 			Error: URI("Peer already subscribed on subscription"),
 		}
 	}
 
 	subscriptionId := NewId()
-	b.topicPeers[subscribe.Topic][p.ID()] = subscriptionId
+	b.topicPeers[subscribe.Topic][s.ID()] = subscriptionId
 	b.topics[subscribe.Topic][subscriptionId] = true
-	b.subscriptions[subscriptionId] = p
+	b.subscriptions[subscriptionId] = s
 	b.topicBySubscription[subscriptionId] = subscribe.Topic
+
+	// Add subscription to session
+	s.addSubscription(subscriptionId, subscribe.Topic)
 
 	return &Subscribed{
 		Request:      subscribe.Request,
@@ -66,7 +69,7 @@ func (b *defaultBroker) Subscribe(msg Message, p Peer) Message {
 	}
 }
 
-func (b *defaultBroker) UnSubscribe(msg Message, p Peer) Message {
+func (b *defaultBroker) UnSubscribe(msg Message, s *Session) Message {
 	b.mutex.Lock()
 	defer b.mutex.Unlock()
 
@@ -87,7 +90,7 @@ func (b *defaultBroker) UnSubscribe(msg Message, p Peer) Message {
 		}
 	}
 
-	peer, ok := b.subscriptions[unsubscribe.Subscription]
+	session, ok := b.subscriptions[unsubscribe.Subscription]
 	if !ok {
 		uri := "peer not found to this Subscription"
 		log.Println(uri, unsubscribe)
@@ -98,12 +101,15 @@ func (b *defaultBroker) UnSubscribe(msg Message, p Peer) Message {
 		}
 	}
 
+	//Remove session subscription
+	session.removeSubscription(unsubscribe.Subscription)
+
 	//remove topic by subscription
 	delete(b.topicBySubscription, unsubscribe.Subscription)
 	//remove peer from subscription map
 	delete(b.subscriptions, unsubscribe.Subscription)
 	//remove peer from topic map
-	delete(b.topicPeers[topic], peer.ID())
+	delete(b.topicPeers[topic], session.ID())
 	//remove subscription from topic
 	delete(b.topics[topic], unsubscribe.Subscription)
 
@@ -115,12 +121,13 @@ func (b *defaultBroker) UnSubscribe(msg Message, p Peer) Message {
 	if len(b.topicPeers[topic]) == 0 {
 		delete(b.topicPeers, topic)
 	}
+
 	return &Unsubscribed{
 		Request: unsubscribe.Request,
 	}
 }
 
-func (b *defaultBroker) Publish(msg Message, p Peer) Message {
+func (b *defaultBroker) Publish(msg Message, p *Session) Message {
 	publish, ok := msg.(*Publish)
 	if !ok {
 		log.Fatal("Unexpected type on publish ", msg.MsgType())

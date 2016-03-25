@@ -149,7 +149,7 @@ func (p *cliClient) handleCall(call *core.Call) core.Message {
 		}
 	}
 
-	response, err := handler(call, p)
+	response, err := handler(call)//@TODO: Peer removed!
 	if err != nil {
 		uri := "Client Error invoking Handler"
 		log.Print(uri, err)

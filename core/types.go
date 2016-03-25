@@ -277,6 +277,7 @@ func (msg *Goodbye) MsgType() MsgType {
 	return GOODBYE
 }
 
+// [8, 66, 788923562, {}, "wamp.error.no_such_registration"]
 // [ERROR, REQUEST.Type|int, REQUEST.Request|id, Details|dict, Error|uri]
 // [ERROR, REQUEST.Type|int, REQUEST.Request|id, Details|dict, Error|uri, Arguments|list]
 // [ERROR, REQUEST.Type|int, REQUEST.Request|id, Details|dict, Error|uri, Arguments|list, ArgumentsKw|dict]
@@ -384,6 +385,7 @@ func (msg *Event) MsgType() MsgType {
 	return EVENT
 }
 
+// [48, 7814135, {}, "com.myapp.echo", ["Hello, world!"]]
 // [CALL, Request|id, Options|dict, Procedure|uri]
 // [CALL, Request|id, Options|dict, Procedure|uri, Arguments|list]
 // [CALL, Request|id, Options|dict, Procedure|uri, Arguments|list, ArgumentsKw|dict]
@@ -452,6 +454,7 @@ func (msg *Unregistered) MsgType() MsgType {
 	return UNREGISTERED
 }
 
+// [68, 6131533, 9823527, {}, ["Hello, world!"]]
 // [INVOCATION, Request|id, REGISTERED.Registration|id, Details|dict]
 // [INVOCATION, Request|id, REGISTERED.Registration|id, Details|dict, CALL.Arguments|list]
 // [INVOCATION, Request|id, REGISTERED.Registration|id, Details|dict, CALL.Arguments|list, CALL.ArgumentsKw|dict]
@@ -467,6 +470,7 @@ func (msg *Invocation) MsgType() MsgType {
 	return INVOCATION
 }
 
+// [70, 6131533, {}, ["Hello, world!"]]
 // [YIELD, INVOCATION.Request|id, Options|dict]
 // [YIELD, INVOCATION.Request|id, Options|dict, Arguments|list]
 // [YIELD, INVOCATION.Request|id, Options|dict, Arguments|list, ArgumentsKw|dict]
