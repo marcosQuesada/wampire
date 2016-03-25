@@ -3,12 +3,14 @@ package core
 import (
 	"log"
 	"sync"
+	"fmt"
 )
 
 type Broker interface {
 	Subscribe(Message, *Session) Message
 	UnSubscribe(Message, *Session) Message
 	Publish(Message, *Session) Message
+	Handlers() map[URI]Handler
 }
 
 type defaultBroker struct {
@@ -170,5 +172,39 @@ func (b *defaultBroker) Publish(msg Message, p *Session) Message {
 
 	return &Published{
 		Request: publish.Request,
+	}
+}
+
+func (b *defaultBroker) dumpBroker(msg Message) (Message, error) {
+	b.mutex.RLock()
+	topics := b.topics
+	subscriptions := b.subscriptions
+	b.mutex.RUnlock()
+
+	list := []interface{}{}
+	for topic, _ := range topics {
+		list = append(list, topic)
+	}
+
+	subs :=  map[string]interface{}{}
+	for id, s := range subscriptions {
+		subs[fmt.Sprintf("%d", id)] = s.ID()
+	}
+	inv := msg.(*Invocation)
+	kw := map[string]interface{}{
+		"topics": list,
+		"subscriptions": subs,
+	}
+
+	return &Yield{
+		Request:   inv.Request,
+		ArgumentsKw: kw,
+	}, nil
+
+}
+
+func (b *defaultBroker) Handlers() map[URI]Handler {
+	return map[URI]Handler{
+		"wampire.core.broker.dump": b.dumpBroker,
 	}
 }

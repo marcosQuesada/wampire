@@ -15,12 +15,12 @@ func newInSession() *inSession {
 	}
 	//go i.readLoop()
 
-	for u, h := range i.Handlers() {
+/*	for u, h := range i.Handlers() {
 		err := internalSession.register(u, h)
 		if err != nil {
 			log.Println("InSession Error registerig ", u)
 		}
-	}
+	}*/
 
 	return i
 }
@@ -34,10 +34,15 @@ func (i *inSession) help(msg Message) (Message, error) {
 }
 
 func (i *inSession) list(msg Message) (Message, error) {
+	list := []interface{}{}
+	for uri, _ := range i.session.handlers {
+		list = append(list, uri)
+	}
+
 	inv := msg.(*Invocation)
 	return &Yield{
 		Request:   inv.Request,
-		Arguments: []interface{}{"list-okiDoki"},
+		Arguments: list,
 	}, nil
 }
 

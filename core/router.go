@@ -11,9 +11,9 @@ type Router struct {
 	sessions map[PeerID]*Session
 	Broker
 	Dealer
-	exit     chan struct{}
-	mutex    *sync.RWMutex
-	auth     Authenticator
+	exit  chan struct{}
+	mutex *sync.RWMutex
+	auth  Authenticator
 }
 
 type Authenticator func(Message) bool
@@ -28,9 +28,12 @@ func NewRouter() *Router {
 		mutex:    &sync.RWMutex{},
 	}
 
-
 	internalSession := newInSession()
-	r.Dealer.RegisterSessionHandlers(internalSession)
+	r.Dealer.RegisterSessionHandlers(internalSession.Handlers(), internalSession)
+	r.Dealer.RegisterSessionHandlers(r.Handlers(), internalSession)
+	r.Dealer.RegisterSessionHandlers(r.Broker.Handlers(), internalSession)
+	r.Dealer.RegisterSessionHandlers(r.Dealer.Handlers(), internalSession)
+
 	go r.handleSession(internalSession.session)
 
 	return r
@@ -229,4 +232,28 @@ func (r *Router) waitUntilVoid() chan struct{} {
 	}()
 
 	return void
+}
+
+func (r *Router) listSessions(msg Message) (Message, error) {
+	r.mutex.RLock()
+	sessions := r.sessions
+	r.mutex.RUnlock()
+	list := []interface{}{}
+	for peerId, _ := range sessions {
+		list = append(list, peerId)
+	}
+
+	inv := msg.(*Invocation)
+
+	return &Yield{
+		Request:   inv.Request,
+		Arguments: list,
+	}, nil
+
+}
+
+func (r *Router) Handlers() map[URI]Handler {
+	return map[URI]Handler{
+		"wampire.core.router.sessions": r.listSessions,
+	}
 }

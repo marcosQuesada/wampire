@@ -12,7 +12,8 @@ type Dealer interface {
 	Call(Message, *Session) Message
 	Yield(Message, *Session) Message
 	Cancel(Message, *Session) Message
-	RegisterSessionHandlers(*inSession)
+	RegisterSessionHandlers(map[URI]Handler, *inSession)
+	Handlers() map[URI]Handler
 }
 
 type defaultDealer struct {
@@ -185,15 +186,49 @@ func (d *defaultDealer) Cancel(msg Message, p *Session) Message {
 	}
 }
 
-func (d *defaultDealer) RegisterSessionHandlers(s *inSession) {
-	for uri, _ := range s.Handlers() {
+func (d *defaultDealer) RegisterSessionHandlers(handlers map[URI]Handler, s *inSession) {
+	for uri, h := range handlers {
 		msg := d.Register(&Register{Request: NewId(), Procedure: uri}, s.session)
 		if msg.MsgType() != REGISTERED {
 			log.Println("InSession Error registerig ", uri)
 		}
+		err := s.session.register(uri, h)
+		if err != nil {
+			log.Println("InSession Error registerig ", uri)
+		}
+	}
+}
 
-		// Registration!
-		r := msg.(*Registered)
-		s.session.addRegistration(r.Registration, uri)
+func (d *defaultDealer) dumpDealer(msg Message) (Message, error) {
+	d.mutex.RLock()
+	sessions := d.sessionHandlers
+	registrations := d.registrations
+	d.mutex.RUnlock()
+
+	list :=  map[string]interface{}{}
+	for uri, id := range sessions {
+		list[string(uri)] = id
+	}
+
+	regs := map[string]interface{}{}
+	for id, s := range registrations {
+		regs[fmt.Sprintf("%d", id)] = s.ID()
+	}
+	inv := msg.(*Invocation)
+	kw := map[string]interface{}{
+		"session_handlers": list,
+		"registrations": regs,
+	}
+
+	return &Yield{
+		Request:   inv.Request,
+		ArgumentsKw: kw,
+	}, nil
+
+}
+
+func (d *defaultDealer) Handlers() map[URI]Handler {
+	return map[URI]Handler{
+		"wampire.core.dealer.dump": d.dumpDealer,
 	}
 }
