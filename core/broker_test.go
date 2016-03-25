@@ -62,10 +62,6 @@ func TestBrokerSubscribe(t *testing.T) {
 		t.Error(" Void SUbscription ID")
 	}
 
-	if _, ok := b.topicBySubscription[subsRes.Subscription]; !ok {
-		t.Error("Unexpected topic subscription not found")
-	}
-
 	// assert Session subscription
 	topic, ok := s.subscriptions[subsRes.Subscription]
 	if  !ok {
@@ -105,10 +101,6 @@ func TestBrokerUnSubscribe(t *testing.T) {
 	}
 
 	if len(b.subscriptions) != 0 {
-		t.Error("Unexpected subscriptions size")
-	}
-
-	if len(b.topicBySubscription) != 0 {
 		t.Error("Unexpected subscriptions size")
 	}
 

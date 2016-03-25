@@ -6,6 +6,7 @@ import (
 "log"
 	"net/url"
 "github.com/gorilla/websocket"
+	"fmt"
 )
 
 func TestServerConnectionHandling(t *testing.T) {
@@ -14,30 +15,57 @@ func TestServerConnectionHandling(t *testing.T) {
 	go s.Run()
 
 	time.Sleep(time.Millisecond * 100)
-	tstClient := NewTestClient("localhost:8888")
-	go tstClient.readLoop()
-	time.Sleep(time.Millisecond * 100)
-	tstClient.Send(&Hello{Realm: "foo", Details: map[string]interface{}{"foo": "bar"}})
-	r := <- tstClient.rsp
-	if r.MsgType() != WELCOME {
-		t.Error("unexpected Hello response ", r.MsgType())
+	tstClientA := NewTestClient("localhost:8888")
+	err := tstClientA.handshake()
+	if err!=nil {
+		t.Error("Unexpected error on testclient 1 handshake", err)
 	}
-	log.Println("Received from subscribe ", r)
+	tstClientB := NewTestClient("localhost:8888")
+	err = tstClientB.handshake()
+	if err!=nil {
+		t.Error("Unexpected error on testclient 1 handshake", err)
+	}
 
-	subs := &Subscribe{Request:ID(123), Topic: Topic("foo")}
-	tstClient.Send(subs)
-	r = <- tstClient.rsp
-	if r.MsgType() != SUBSCRIBED {
+	topic := Topic("foo")
+	err = tstClientA.subscribeTopic(topic)
+	if err!=nil {
+		t.Error("Unexpected error on testclient 1 handshake", err)
+	}
+	err = tstClientB.subscribeTopic(topic)
+	if err!=nil {
+		t.Error("Unexpected error on testclient 1 handshake", err)
+	}
+
+	tstClientA.session.Send(&Publish{Request:ID(9999), Topic:topic, Options:map[string]interface{}{"foo":"bar"}})
+	r := <- tstClientA.rsp
+	if r.MsgType() != PUBLISHED {
 		t.Error("unexpected Hello response ", r.MsgType())
 	}
-	log.Println("Received from subscribe ", r)
+
+	r = <- tstClientB.rsp
+	if r.MsgType() != EVENT {
+		t.Error("unexpected Hello response ", r.MsgType())
+	}
+
+	rDetails := r.(*Event).Details
+	v, ok := rDetails["foo"]
+	if  !ok {
+		t.Error("Event Details not found")
+	}
+	if v!= "bar" {
+		t.Error("Unmatched Event Details")
+	}
+
 	time.Sleep(time.Second * 1)
+	tstClientA.session.Terminate()
+	tstClientB.session.Terminate()
 	s.Terminate()
-	close(tstClient.done)
+	close(tstClientA.done)
+	close(tstClientB.done)
 }
 
 type testClient struct {
-	Peer
+	session *Session
 	subscriptions map[ID]bool
 	rsp chan Message
 	done chan struct{}
@@ -52,9 +80,10 @@ func NewTestClient(host string) *testClient{
 	}
 
 	log.Printf("connected to %s \n", u.String())
-
+	peer := NewWebsockerPeer(conn, CLIENT)
+	session := NewSession(peer)
 	sc := &testClient{
-		Peer: NewWebsockerPeer(conn, CLIENT),
+		session: session,
 		rsp: make(chan Message),
 		done: make(chan struct{}),
 	}
@@ -67,7 +96,7 @@ func NewTestClient(host string) *testClient{
 func (c *testClient)readLoop() {
 	for {
 		select {
-		case msg, open := <- c.Receive():
+		case msg, open := <- c.session.Receive():
 			if !open {
 				return
 			}
@@ -78,4 +107,23 @@ func (c *testClient)readLoop() {
 			return
 		}
 	}
+}
+
+func (c *testClient) handshake() error{
+	c.session.Send(&Hello{Realm: "foo", Details: map[string]interface{}{"foo": "bar"}})
+	r := <- c.rsp
+	if r.MsgType() != WELCOME {
+		return fmt.Errorf("unexpected Hello response ", r.MsgType())
+	}
+
+	return nil
+}
+func (c *testClient) subscribeTopic(topic Topic) error{
+	subs := &Subscribe{Request:ID(123), Topic: topic}
+	c.session.Send(subs)
+	r := <- c.rsp
+	if r.MsgType() != SUBSCRIBED {
+		return fmt.Errorf("unexpected Hello response ", r.MsgType())
+	}
+	return nil
 }

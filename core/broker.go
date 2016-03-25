@@ -15,7 +15,6 @@ type defaultBroker struct {
 	topics              map[Topic]map[ID]bool   //maps topics to subscriptions
 	subscriptions       map[ID]*Session             //a peer may have many subscriptions
 	topicPeers          map[Topic]map[PeerID]ID //maps peers by topic on subscription
-	topicBySubscription map[ID]Topic            // topic from Subscription ID
 	mutex               *sync.RWMutex
 }
 
@@ -24,7 +23,6 @@ func NewBroker() *defaultBroker {
 		topics:              make(map[Topic]map[ID]bool),
 		subscriptions:       make(map[ID]*Session),
 		topicPeers:          make(map[Topic]map[PeerID]ID),
-		topicBySubscription: make(map[ID]Topic),
 		mutex:               &sync.RWMutex{},
 	}
 }
@@ -58,7 +56,6 @@ func (b *defaultBroker) Subscribe(msg Message, s *Session) Message {
 	b.topicPeers[subscribe.Topic][s.ID()] = subscriptionId
 	b.topics[subscribe.Topic][subscriptionId] = true
 	b.subscriptions[subscriptionId] = s
-	b.topicBySubscription[subscriptionId] = subscribe.Topic
 
 	// Add subscription to session
 	s.addSubscription(subscriptionId, subscribe.Topic)
@@ -73,13 +70,16 @@ func (b *defaultBroker) UnSubscribe(msg Message, s *Session) Message {
 	b.mutex.Lock()
 	defer b.mutex.Unlock()
 
+	log.Println("Handling Unsubscribe from ", s.ID())
 	unsubscribe, ok := msg.(*Unsubscribe)
+	log.Println("Subscriptions", s.subscriptions)
+	//s.removeSubscription(unsubscribe.Subscription)
 	if !ok {
 		log.Fatal("Unexpected type on UnSubscribe ", msg.MsgType())
 		panic("Unexpected type on UnSubscribe")
 	}
 
-	topic, ok := b.topicBySubscription[unsubscribe.Subscription]
+	topic, ok := s.subscriptions[unsubscribe.Subscription]
 	if !ok {
 		uri := "topic not found to this Subscription"
 		log.Println(uri, unsubscribe)
@@ -100,12 +100,11 @@ func (b *defaultBroker) UnSubscribe(msg Message, s *Session) Message {
 			Error:   URI(uri),
 		}
 	}
-
+	log.Println("Session Unsubscribe  ", session.ID())
 	//Remove session subscription
-	session.removeSubscription(unsubscribe.Subscription)
+	s.removeSubscription(unsubscribe.Subscription)
+	log.Println("Subscriptions", s.subscriptions)
 
-	//remove topic by subscription
-	delete(b.topicBySubscription, unsubscribe.Subscription)
 	//remove peer from subscription map
 	delete(b.subscriptions, unsubscribe.Subscription)
 	//remove peer from topic map

@@ -18,7 +18,7 @@ type defaultDealer struct {
 	sessionHandlers map[URI]ID
 	registrations   map[ID]*Session
 	reqListeners    *RequestListener
-	//currentTasks: make(map[ID]Message // Register active Calls to enable Cancel
+	//currentTasks: make(map[ID]Message //@TODO: Register active Calls to enable Cancel
 	mutex *sync.RWMutex
 }
 

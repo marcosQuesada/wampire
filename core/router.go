@@ -90,21 +90,21 @@ func (r *Router) authenticate(msg Message) bool {
 	return true
 }
 
-func (r *Router) handleSession(p *Session) {
-	defer log.Println("Exit session handler from peer ", p.ID())
-	defer p.Terminate()
-	defer r.unRegister(p)
+func (r *Router) handleSession(s *Session) {
+	defer log.Println("Exit session handler from peer ", s.ID())
+	defer s.Terminate()
+	defer r.unRegister(s)
 	defer func() {
-		for sid, topic := range p.subscriptions {
+		for sid, topic := range s.subscriptions {
 			log.Printf("Unsubscribe sid %d on topic %s \n", sid, topic)
 			u := &Unsubscribe{Request: NewId(), Subscription: sid}
-			r.broker.UnSubscribe(u, nil)
+			r.broker.UnSubscribe(u, s)
 		}
 	}()
 
 	for {
 		select {
-		case msg, open := <-p.Receive():
+		case msg, open := <-s.Receive():
 			if !open {
 				log.Println("Closing handled session from closed receive chan")
 				return
@@ -117,39 +117,39 @@ func (r *Router) handleSession(p *Session) {
 				// exit handler
 			case *Publish:
 				log.Println("Received Publish")
-				response = r.broker.Publish(msg, p)
+				response = r.broker.Publish(msg, s)
 			case *Subscribe:
 				log.Println("Received Subscribe")
-				response = r.broker.Subscribe(msg, p)
+				response = r.broker.Subscribe(msg, s)
 
 				//store subscription on session
 				//unsubscribe on session close
-				if s, ok := response.(*Subscribed); ok {
+				if sbd, ok := response.(*Subscribed); ok {
 					r.mutex.Lock()
-					p.subscriptions[s.Subscription] = msg.(*Subscribe).Topic
+					s.subscriptions[sbd.Subscription] = msg.(*Subscribe).Topic
 					r.mutex.Unlock()
 				}
 			case *Unsubscribe:
 				log.Println("Received Unubscribe")
-				response = r.broker.UnSubscribe(msg, p)
+				response = r.broker.UnSubscribe(msg, s)
 
 				// remove subscription from session
 				if _, ok := response.(*Unsubscribed); ok {
-					s := msg.(*Unsubscribe)
+					usbd := msg.(*Unsubscribe)
 					r.mutex.Lock()
-					delete(p.subscriptions, s.Subscription)
+					delete(s.subscriptions, usbd.Subscription)
 					r.mutex.Unlock()
 				}
 			case *Call:
 				log.Println("Received Call")
-				response = r.dealer.Call(msg, p)
+				response = r.dealer.Call(msg, s)
 			case *Cancel:
 				log.Println("Received Cancel, forward this to requester on dealer ")
-				r.dealer.Cancel(msg, p)
+				r.dealer.Cancel(msg, s)
 
 			case *Yield:
 				log.Println("Received Yield, forward this to dealer ")
-				r.dealer.Yield(msg, p)
+				r.dealer.Yield(msg, s)
 
 			//@TODO: Communication between wamp nodes
 			case *Invocation:
@@ -157,14 +157,14 @@ func (r *Router) handleSession(p *Session) {
 			//	r.dealer.Invocation(msg, p)
 			case *Result:
 				log.Println("Received Result, Unexpected message on wamp router")
-			//r.dealer.ExternalResult(msg, p)
-			// First approach on remote Handlers, used as result callback
+				//r.dealer.ExternalResult(msg, p)
+
 			case *Register:
 				log.Println("Received Register")
-				response = r.dealer.Register(msg, p)
+				response = r.dealer.Register(msg, s)
 			case *Unregister:
 				log.Println("Received Unregister")
-				response = r.dealer.Unregister(msg, p)
+				response = r.dealer.Unregister(msg, s)
 			default:
 				log.Println("Session unhandled message ", msg.MsgType())
 				response = &Error{
@@ -172,10 +172,10 @@ func (r *Router) handleSession(p *Session) {
 				}
 			}
 			if response != nil {
-				p.Send(response)
+				s.Send(response)
 			}
 		case <-r.exit:
-			log.Println("Shutting down session handler from peer ", p.ID())
+			log.Println("Shutting down session handler from peer ", s.ID())
 			return
 		}
 	}
