@@ -14,6 +14,7 @@ import (
 type Server struct {
 	port   int
 	router *Router
+	httpCientPath string
 }
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:  4096,
@@ -30,6 +31,7 @@ func NewServer(port int) *Server {
 	return &Server{
 		port:   port,
 		router: router,
+		httpCientPath: "",
 	}
 }
 
@@ -40,14 +42,18 @@ func (s *Server) Run() {
 	router := mux.NewRouter().StrictSlash(true)
 	router.HandleFunc("/ws", s.ServeWs)
 
-	port := fmt.Sprintf(":%d", s.port)
+	// add http client if required
+	if s.httpCientPath != "" {
+		httpDir := http.Dir(fmt.Sprintf("core/%s", s.httpCientPath))
+		htmlClient := http.StripPrefix("/", http.FileServer(httpDir))
+		router.PathPrefix("/").Handler(htmlClient)
+	}
 
-	ln, err := net.Listen("tcp", port)
+	ln, err := net.Listen("tcp", fmt.Sprintf(":%d", s.port))
 	if err != nil {
 		log.Println("Server Error Listening ", err)
 		return
 	}
-	log.Println("Before Serve")
 
 	err = http.Serve(ln, router)
 	if err != nil {
@@ -79,4 +85,8 @@ func (s *Server) ServeWs(w http.ResponseWriter, r *http.Request) {
 
 	p := NewWebsockerPeer(ws, SERVER)
 	s.router.Accept(p)
+}
+
+func (s *Server) SetHttpClient(path string) {
+	s.httpCientPath = path
 }

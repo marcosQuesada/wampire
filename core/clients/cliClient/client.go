@@ -94,6 +94,17 @@ func (c *cliClient) processCli() {
 			id := core.NewId()
 			subs := &core.Subscribe{Request: id, Topic: core.Topic(args[1])}
 			c.Send(subs)
+		case "CALL":
+			if len(args) == 1 {
+				log.Println("CALL Void URI")
+				continue
+			}
+			call := &core.Call{
+				Request:  core.NewId() ,
+				Procedure: core.URI(args[1]),
+				Arguments: []interface{}{"bar", 1},
+			}
+			c.Send(call)
 		case "EXIT":
 			log.Println("Exit Cli client")
 			close(c.done)
