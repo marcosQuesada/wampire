@@ -75,9 +75,9 @@ func (s *Session) do(i *Invocation) error {
 	if err != nil {
 		return err
 	}
-
+	log.Println("Sending response ", response.MsgType(), response)
 	s.Send(response)
-
+	log.Println("response done")
 	return nil
 }
 

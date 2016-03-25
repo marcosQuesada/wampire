@@ -12,27 +12,30 @@ type Dealer interface {
 	Call(Message, *Session) Message
 	Yield(Message, *Session) Message
 	Cancel(Message, *Session) Message
+	RegisterSessionHandlers(*inSession)
 }
 
 type defaultDealer struct {
 	sessionHandlers map[URI]ID
-	registrations   map[ID]*Session
+	registrations   map[ID]*Session  // handler registrations from session callees
 	reqListeners    *RequestListener
 	//currentTasks: make(map[ID]Message //@TODO: Register active Calls to enable Cancel
 	mutex *sync.RWMutex
 }
 
 func NewDealer() *defaultDealer {
-	return &defaultDealer{
+	d := &defaultDealer{
 		sessionHandlers: make(map[URI]ID),
 		registrations:   make(map[ID]*Session),
-		//currentTasks: make(map[ID]Message
 		mutex:        &sync.RWMutex{},
 		reqListeners: NewRequestListener(),
 	}
+
+	return d
 }
 
 func (d *defaultDealer) Register(msg Message, s *Session) Message {
+	log.Println("Register invoked ", msg.(*Register))
 	d.mutex.Lock()
 	defer d.mutex.Unlock()
 	register := msg.(*Register)
@@ -179,5 +182,18 @@ func (d *defaultDealer) Cancel(msg Message, p *Session) Message {
 	// @TODO: How to cancel a job in progress?
 	return &Error{
 		Error: URI("Pending to develop"),
+	}
+}
+
+func (d *defaultDealer) RegisterSessionHandlers(s *inSession) {
+	for uri, _ := range s.Handlers() {
+		msg := d.Register(&Register{Request: NewId(), Procedure: uri}, s.session)
+		if msg.MsgType() != REGISTERED {
+			log.Println("InSession Error registerig ", uri)
+		}
+
+		// Registration!
+		r := msg.(*Registered)
+		s.session.addRegistration(r.Registration, uri)
 	}
 }

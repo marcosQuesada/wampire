@@ -9,8 +9,8 @@ import (
 
 type Router struct {
 	sessions map[PeerID]*Session
-	broker   Broker
-	dealer   Dealer
+	Broker
+	Dealer
 	exit     chan struct{}
 	mutex    *sync.RWMutex
 	auth     Authenticator
@@ -20,15 +20,20 @@ type Authenticator func(Message) bool
 
 func NewRouter() *Router {
 
-	return &Router{
+	r := &Router{
 		sessions: make(map[PeerID]*Session),
-		broker:   NewBroker(),
-		dealer:   NewDealer(),
+		Broker:   NewBroker(),
+		Dealer:   NewDealer(),
 		exit:     make(chan struct{}),
 		mutex:    &sync.RWMutex{},
 	}
 
 
+	internalSession := newInSession()
+	r.Dealer.RegisterSessionHandlers(internalSession)
+	go r.handleSession(internalSession.session)
+
+	return r
 }
 
 func (r *Router) Accept(p Peer) error {
@@ -47,13 +52,13 @@ func (r *Router) Accept(p Peer) error {
 		var response Message
 		if r.authenticate(h) {
 			response = &Abort{
-				//Id: h.Id,
+			//Id: h.Id,
 			}
 		}
 
 		//answer welcome
 		response = &Welcome{
-			Id: NewId(),
+			Id:      NewId(),
 			Details: h.Details,
 		}
 		p.Send(response)
@@ -98,7 +103,7 @@ func (r *Router) handleSession(s *Session) {
 		for sid, topic := range s.subscriptions {
 			log.Printf("Unsubscribe sid %d on topic %s \n", sid, topic)
 			u := &Unsubscribe{Request: NewId(), Subscription: sid}
-			r.broker.UnSubscribe(u, s)
+			r.Broker.UnSubscribe(u, s)
 		}
 	}()
 
@@ -117,10 +122,10 @@ func (r *Router) handleSession(s *Session) {
 				// exit handler
 			case *Publish:
 				log.Println("Received Publish")
-				response = r.broker.Publish(msg, s)
+				response = r.Broker.Publish(msg, s)
 			case *Subscribe:
 				log.Println("Received Subscribe")
-				response = r.broker.Subscribe(msg, s)
+				response = r.Broker.Subscribe(msg, s)
 
 				//store subscription on session
 				//unsubscribe on session close
@@ -131,7 +136,7 @@ func (r *Router) handleSession(s *Session) {
 				}
 			case *Unsubscribe:
 				log.Println("Received Unubscribe")
-				response = r.broker.UnSubscribe(msg, s)
+				response = r.Broker.UnSubscribe(msg, s)
 
 				// remove subscription from session
 				if _, ok := response.(*Unsubscribed); ok {
@@ -142,14 +147,14 @@ func (r *Router) handleSession(s *Session) {
 				}
 			case *Call:
 				log.Println("Received Call")
-				response = r.dealer.Call(msg, s)
+				response = r.Dealer.Call(msg, s)
 			case *Cancel:
 				log.Println("Received Cancel, forward this to requester on dealer ")
-				r.dealer.Cancel(msg, s)
+				r.Dealer.Cancel(msg, s)
 
 			case *Yield:
 				log.Println("Received Yield, forward this to dealer ")
-				r.dealer.Yield(msg, s)
+				r.Dealer.Yield(msg, s)
 
 			//@TODO: Communication between wamp nodes
 			case *Invocation:
@@ -161,10 +166,10 @@ func (r *Router) handleSession(s *Session) {
 
 			case *Register:
 				log.Println("Received Register")
-				response = r.dealer.Register(msg, s)
+				response = r.Dealer.Register(msg, s)
 			case *Unregister:
 				log.Println("Received Unregister")
-				response = r.dealer.Unregister(msg, s)
+				response = r.Dealer.Unregister(msg, s)
 			default:
 				log.Println("Session unhandled message ", msg.MsgType())
 				response = &Error{

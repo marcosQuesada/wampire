@@ -12,18 +12,18 @@ type Broker interface {
 }
 
 type defaultBroker struct {
-	topics              map[Topic]map[ID]bool   //maps topics to subscriptions
-	subscriptions       map[ID]*Session             //a peer may have many subscriptions
-	topicPeers          map[Topic]map[PeerID]ID //maps peers by topic on subscription
-	mutex               *sync.RWMutex
+	topics        map[Topic]map[ID]bool   //maps topics to subscriptions
+	subscriptions map[ID]*Session         //a peer may have many subscriptions
+	topicPeers    map[Topic]map[PeerID]ID //maps peers by topic on subscription
+	mutex         *sync.RWMutex
 }
 
 func NewBroker() *defaultBroker {
 	return &defaultBroker{
-		topics:              make(map[Topic]map[ID]bool),
-		subscriptions:       make(map[ID]*Session),
-		topicPeers:          make(map[Topic]map[PeerID]ID),
-		mutex:               &sync.RWMutex{},
+		topics:        make(map[Topic]map[ID]bool),
+		subscriptions: make(map[ID]*Session),
+		topicPeers:    make(map[Topic]map[PeerID]ID),
+		mutex:         &sync.RWMutex{},
 	}
 }
 
@@ -70,10 +70,7 @@ func (b *defaultBroker) UnSubscribe(msg Message, s *Session) Message {
 	b.mutex.Lock()
 	defer b.mutex.Unlock()
 
-	log.Println("Handling Unsubscribe from ", s.ID())
 	unsubscribe, ok := msg.(*Unsubscribe)
-	log.Println("Subscriptions", s.subscriptions)
-	//s.removeSubscription(unsubscribe.Subscription)
 	if !ok {
 		log.Fatal("Unexpected type on UnSubscribe ", msg.MsgType())
 		panic("Unexpected type on UnSubscribe")
@@ -100,7 +97,7 @@ func (b *defaultBroker) UnSubscribe(msg Message, s *Session) Message {
 			Error:   URI(uri),
 		}
 	}
-	log.Println("Session Unsubscribe  ", session.ID())
+
 	//Remove session subscription
 	s.removeSubscription(unsubscribe.Subscription)
 	log.Println("Subscriptions", s.subscriptions)
@@ -157,14 +154,14 @@ func (b *defaultBroker) Publish(msg Message, p *Session) Message {
 		}
 
 		if peer.ID() != p.ID() {
-			// Forward Publish to all topic subscriptors as event
+			//  Publish to all topic subscriptors as event
 			publish := msg.(*Publish)
 			event := &Event{
 				Subscription: subscriptionId,
 				Publication:  publish.Request,
-				Details: publish.Options,
-				Arguments: publish.Arguments,
-				ArgumentsKw: publish.ArgumentsKw,
+				Details:      publish.Options,
+				Arguments:    publish.Arguments,
+				ArgumentsKw:  publish.ArgumentsKw,
 			}
 			//send message in a non blocking way
 			go peer.Send(event)
