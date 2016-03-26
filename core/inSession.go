@@ -4,23 +4,15 @@ import "log"
 
 type inSession struct {
 	session *Session
-	done chan struct{}
+	done    chan struct{}
 }
 
 func newInSession() *inSession {
 	internalSession := NewSession(NewInternalPeer())
 	i := &inSession{
 		session: internalSession,
-		done: make(chan struct{}),
+		done:    make(chan struct{}),
 	}
-	//go i.readLoop()
-
-/*	for u, h := range i.Handlers() {
-		err := internalSession.register(u, h)
-		if err != nil {
-			log.Println("InSession Error registerig ", u)
-		}
-	}*/
 
 	return i
 }

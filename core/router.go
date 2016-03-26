@@ -28,6 +28,7 @@ func NewRouter() *Router {
 		mutex:    &sync.RWMutex{},
 	}
 
+	// Register in session procedures
 	internalSession := newInSession()
 	r.Dealer.RegisterSessionHandlers(internalSession.Handlers(), internalSession)
 	r.Dealer.RegisterSessionHandlers(r.Handlers(), internalSession)
@@ -124,10 +125,10 @@ func (r *Router) handleSession(s *Session) {
 				log.Println("Received Goodbye")
 				// exit handler
 			case *Publish:
-				log.Println("Received Publish")
+				log.Println("Received Publish on topic ", msg.(*Publish).Topic)
 				response = r.Broker.Publish(msg, s)
 			case *Subscribe:
-				log.Println("Received Subscribe")
+				log.Println("Received Subscribe", msg.(*Subscribe).Topic)
 				response = r.Broker.Subscribe(msg, s)
 
 				//store subscription on session
@@ -149,7 +150,7 @@ func (r *Router) handleSession(s *Session) {
 					r.mutex.Unlock()
 				}
 			case *Call:
-				log.Println("Received Call")
+				log.Println("Received Call ", msg.(*Call).Procedure)
 				response = r.Dealer.Call(msg, s)
 			case *Cancel:
 				log.Println("Received Cancel, forward this to requester on dealer ")
@@ -165,10 +166,9 @@ func (r *Router) handleSession(s *Session) {
 			//	r.dealer.Invocation(msg, p)
 			case *Result:
 				log.Println("Received Result, Unexpected message on wamp router")
-				//r.dealer.ExternalResult(msg, p)
 
 			case *Register:
-				log.Println("Received Register")
+				log.Println("Received Register ", msg.(*Register).Procedure)
 				response = r.Dealer.Register(msg, s)
 			case *Unregister:
 				log.Println("Received Unregister")
@@ -234,6 +234,12 @@ func (r *Router) waitUntilVoid() chan struct{} {
 	return void
 }
 
+func (r *Router) Handlers() map[URI]Handler {
+	return map[URI]Handler{
+		"wampire.core.router.sessions": r.listSessions,
+	}
+}
+
 func (r *Router) listSessions(msg Message) (Message, error) {
 	r.mutex.RLock()
 	sessions := r.sessions
@@ -250,10 +256,4 @@ func (r *Router) listSessions(msg Message) (Message, error) {
 		Arguments: list,
 	}, nil
 
-}
-
-func (r *Router) Handlers() map[URI]Handler {
-	return map[URI]Handler{
-		"wampire.core.router.sessions": r.listSessions,
-	}
 }

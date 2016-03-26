@@ -18,7 +18,7 @@ type Dealer interface {
 
 type defaultDealer struct {
 	sessionHandlers map[URI]ID
-	registrations   map[ID]*Session  // handler registrations from session callees
+	registrations   map[ID]*Session // handler registrations from session callees
 	reqListeners    *RequestListener
 	//currentTasks: make(map[ID]Message //@TODO: Register active Calls to enable Cancel
 	mutex *sync.RWMutex
@@ -28,15 +28,15 @@ func NewDealer() *defaultDealer {
 	d := &defaultDealer{
 		sessionHandlers: make(map[URI]ID),
 		registrations:   make(map[ID]*Session),
-		mutex:        &sync.RWMutex{},
-		reqListeners: NewRequestListener(),
+		mutex:           &sync.RWMutex{},
+		reqListeners:    NewRequestListener(),
 	}
 
 	return d
 }
 
 func (d *defaultDealer) Register(msg Message, s *Session) Message {
-	log.Println("Register invoked ", msg.(*Register))
+	log.Println("Register invoked ", msg.(*Register).Procedure)
 	d.mutex.Lock()
 	defer d.mutex.Unlock()
 	register := msg.(*Register)
@@ -132,7 +132,7 @@ func (d *defaultDealer) Call(msg Message, s *Session) Message {
 		ArgumentsKw:  call.ArgumentsKw,
 	}
 
-	log.Println("Invocation Request is ", call.Request, "org peer ", s.ID())
+	log.Println("Invocation Request is ", call.Request, "origin peer ", s.ID())
 	calleeSession, ok := d.registrations[registration]
 	if !ok {
 		uri := "Registration not foun"
@@ -142,8 +142,6 @@ func (d *defaultDealer) Call(msg Message, s *Session) Message {
 		}
 	}
 
-
-	//@TODO: Key point to improve inernal client performance
 	err := calleeSession.do(invocation)
 	if err != nil {
 		log.Println("Error calleeSession do", err, invocation)
@@ -152,7 +150,6 @@ func (d *defaultDealer) Call(msg Message, s *Session) Message {
 		}
 	}
 
-	log.Println("Invocation DOne  ", call.Request, "org peer ", s.ID())
 	y, err := d.reqListeners.RegisterAndWait(invocation.Request)
 	if err != nil {
 		log.Println("Error waiting response ", err, msg)
@@ -173,7 +170,6 @@ func (d *defaultDealer) Call(msg Message, s *Session) Message {
 
 func (d *defaultDealer) Yield(msg Message, p *Session) Message {
 	externalResult := msg.(*Yield)
-	log.Println("Yield invoked ", externalResult.Request)
 	d.reqListeners.Notify(msg, externalResult.Request)
 
 	return nil
@@ -199,13 +195,19 @@ func (d *defaultDealer) RegisterSessionHandlers(handlers map[URI]Handler, s *inS
 	}
 }
 
+func (d *defaultDealer) Handlers() map[URI]Handler {
+	return map[URI]Handler{
+		"wampire.core.dealer.dump": d.dumpDealer,
+	}
+}
+
 func (d *defaultDealer) dumpDealer(msg Message) (Message, error) {
 	d.mutex.RLock()
 	sessions := d.sessionHandlers
 	registrations := d.registrations
 	d.mutex.RUnlock()
 
-	list :=  map[string]interface{}{}
+	list := map[string]interface{}{}
 	for uri, id := range sessions {
 		list[string(uri)] = id
 	}
@@ -217,18 +219,12 @@ func (d *defaultDealer) dumpDealer(msg Message) (Message, error) {
 	inv := msg.(*Invocation)
 	kw := map[string]interface{}{
 		"session_handlers": list,
-		"registrations": regs,
+		"registrations":    regs,
 	}
 
 	return &Yield{
-		Request:   inv.Request,
+		Request:     inv.Request,
 		ArgumentsKw: kw,
 	}, nil
 
-}
-
-func (d *defaultDealer) Handlers() map[URI]Handler {
-	return map[URI]Handler{
-		"wampire.core.dealer.dump": d.dumpDealer,
-	}
 }

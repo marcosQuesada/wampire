@@ -1,9 +1,9 @@
 package core
 
 import (
+	"github.com/nu7hatch/gouuid"
+	"log"
 	"sync/atomic"
-"log"
-"github.com/nu7hatch/gouuid"
 )
 
 // https://tools.ietf.org/html/draft-oberstet-hybi-tavendo-wamp-02
@@ -40,6 +40,7 @@ type PeerID string
 
 // atomic counter as message IDs
 var lastId uint64 = 0
+
 func NewId() ID {
 	atomic.AddUint64(&lastId, 1)
 
@@ -171,13 +172,13 @@ func (t MsgType) String() string {
 }
 
 /**
-       [1, "somerealm", {
-         "roles": {
-             "publisher": {},
-             "subscriber": {}
-         }
-       }]
- */
+  [1, "somerealm", {
+    "roles": {
+        "publisher": {},
+        "subscriber": {}
+    }
+  }]
+*/
 /**
  Raw Wamp Hello Message
 [1, "somerealm", {
@@ -220,12 +221,12 @@ func (msg *Hello) MsgType() MsgType {
 }
 
 /**
-       [2, 9129137332, {
-          "roles": {
-             "broker": {}
-          }
-       }]
- */
+  [2, 9129137332, {
+     "roles": {
+        "broker": {}
+     }
+  }]
+*/
 // [WELCOME, Session|id, Details|dict]
 type Welcome struct {
 	Id      ID
@@ -318,8 +319,8 @@ func (msg *Published) MsgType() MsgType {
 }
 
 /**
-   [32, 713845233, {}, "com.myapp.mytopic1"]
- */
+  [32, 713845233, {}, "com.myapp.mytopic1"]
+*/
 // [SUBSCRIBE, Request|id, Options|dict, Topic|uri]
 type Subscribe struct {
 	Request ID
@@ -332,8 +333,8 @@ func (msg *Subscribe) MsgType() MsgType {
 }
 
 /**
-    [33, 713845233, 5512315355]
- */
+  [33, 713845233, 5512315355]
+*/
 // [SUBSCRIBED, SUBSCRIBE.Request|id, Subscription|id]
 type Subscribed struct {
 	Request      ID
@@ -345,8 +346,8 @@ func (msg *Subscribed) MsgType() MsgType {
 }
 
 /**
-      [34, 85346237, 5512315355]
- */
+  [34, 85346237, 5512315355]
+*/
 // [UNSUBSCRIBE, Request|id, SUBSCRIBED.Subscription|id]
 type Unsubscribe struct {
 	Request      ID
@@ -358,8 +359,8 @@ func (msg *Unsubscribe) MsgType() MsgType {
 }
 
 /**
-    [35, 85346237]
- */
+  [35, 85346237]
+*/
 // [UNSUBSCRIBED, UNSUBSCRIBE.Request|id]
 type Unsubscribed struct {
 	Request ID
