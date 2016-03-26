@@ -10,9 +10,9 @@ type Handler func(Message) (Message, error)
 
 type Session struct {
 	Peer
-	subscriptions map[ID]Topic	// Topic subscriptions
-	registrations map[ID]URI	// Handler Registrations to URI
-	handlers      map[URI]Handler	// Handlers by URI
+	subscriptions map[ID]Topic    // Topic subscriptions
+	registrations map[ID]URI      // Handler Registrations to URI
+	handlers      map[URI]Handler // Handlers by URI
 	mutex         *sync.RWMutex
 }
 
@@ -75,9 +75,8 @@ func (s *Session) do(i *Invocation) error {
 	if err != nil {
 		return err
 	}
-	log.Println("Sending response ", response.MsgType(), response)
 	s.Send(response)
-	log.Println("response done")
+
 	return nil
 }
 

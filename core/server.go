@@ -70,7 +70,6 @@ func (s *Server) Terminate() {
 }
 
 func (s *Server) ServeWs(w http.ResponseWriter, r *http.Request) {
-	log.Println("Serve websocket connection")
 	if r.Method != "GET" {
 		http.Error(w, "Method not allowed", 405)
 		return
@@ -84,6 +83,7 @@ func (s *Server) ServeWs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	p := NewWebsockerPeer(ws, SERVER)
+	log.Println("Serve websocket connection, peer ", p.ID())
 	s.router.Accept(p)
 }
 

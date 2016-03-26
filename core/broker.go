@@ -1,9 +1,9 @@
 package core
 
 import (
+	"fmt"
 	"log"
 	"sync"
-	"fmt"
 )
 
 type Broker interface {
@@ -102,8 +102,6 @@ func (b *defaultBroker) UnSubscribe(msg Message, s *Session) Message {
 
 	//Remove session subscription
 	s.removeSubscription(unsubscribe.Subscription)
-	log.Println("Subscriptions", s.subscriptions)
-
 	//remove peer from subscription map
 	delete(b.subscriptions, unsubscribe.Subscription)
 	//remove peer from topic map
@@ -157,7 +155,10 @@ func (b *defaultBroker) Publish(msg Message, p *Session) Message {
 
 		if peer.ID() != p.ID() {
 			//  Publish to all topic subscriptors as event
-			publish := msg.(*Publish)
+			if publish.Options == nil {
+				publish.Options = map[string]interface{}{}
+			}
+			publish.Options["topic"] = publish.Topic
 			event := &Event{
 				Subscription: subscriptionId,
 				Publication:  publish.Request,
@@ -175,6 +176,12 @@ func (b *defaultBroker) Publish(msg Message, p *Session) Message {
 	}
 }
 
+func (b *defaultBroker) Handlers() map[URI]Handler {
+	return map[URI]Handler{
+		"wampire.core.broker.dump": b.dumpBroker,
+	}
+}
+
 func (b *defaultBroker) dumpBroker(msg Message) (Message, error) {
 	b.mutex.RLock()
 	topics := b.topics
@@ -186,25 +193,19 @@ func (b *defaultBroker) dumpBroker(msg Message) (Message, error) {
 		list = append(list, topic)
 	}
 
-	subs :=  map[string]interface{}{}
+	subs := map[string]interface{}{}
 	for id, s := range subscriptions {
 		subs[fmt.Sprintf("%d", id)] = s.ID()
 	}
 	inv := msg.(*Invocation)
 	kw := map[string]interface{}{
-		"topics": list,
+		"topics":        list,
 		"subscriptions": subs,
 	}
 
 	return &Yield{
-		Request:   inv.Request,
+		Request:     inv.Request,
 		ArgumentsKw: kw,
 	}, nil
 
-}
-
-func (b *defaultBroker) Handlers() map[URI]Handler {
-	return map[URI]Handler{
-		"wampire.core.broker.dump": b.dumpBroker,
-	}
 }

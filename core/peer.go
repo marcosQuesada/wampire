@@ -48,18 +48,14 @@ func NewWebsockerPeer(conn *websocket.Conn, mode string) *webSocketPeer {
 	p.conn.SetReadLimit(maxMessageSize)
 
 	p.conn.SetPingHandler(func(string) error {
-		log.Println("Received Ping ", p.id)
-
 		if err := p.write(websocket.PongMessage, []byte{}); err != nil {
 			log.Println("Error writting Ping message", err)
 			return nil
 		}
 
-		log.Println("Sended PONG")
 		return nil
 	})
 	p.conn.SetPongHandler(func(string) error {
-		log.Println("Received PONG, renewing deadline ", p.id)
 		p.conn.SetReadDeadline(time.Now().Add(pongWait))
 		return nil
 	})
@@ -136,7 +132,6 @@ func (p *webSocketPeer) pingLoop() {
 	for {
 		select {
 		case <-ticker.C:
-			log.Println("Sending PING ", p.id)
 			if err := p.write(websocket.PingMessage, []byte{}); err != nil {
 				log.Println("Error writting Ping message", err)
 				return
@@ -180,12 +175,12 @@ func (p *webSocketPeer) write(mt int, message []byte) error {
 /*
 	Internal Peer Concept
 	To be used as callee from local procedures
- */
+*/
 type internalPeer struct {
 	receive chan Message
 }
 
-func NewInternalPeer() *internalPeer{
+func NewInternalPeer() *internalPeer {
 	return &internalPeer{
 		receive: make(chan Message),
 	}

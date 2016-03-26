@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"github.com/gorilla/websocket"
 	"github.com/marcosQuesada/wampire/core"
+	"github.com/olekukonko/tablewriter"
 	"log"
 	"net/url"
 	"os"
 	"os/signal"
+	"reflect"
 	"strings"
 	"syscall"
 )
@@ -33,7 +35,7 @@ func NewCliClient(host string) *cliClient {
 
 	log.Printf("connected to %s \n", u.String())
 
-	pc := &cliClient{
+	c := &cliClient{
 		Peer:          core.NewWebsockerPeer(conn, core.CLIENT),
 		subscriptions: make(map[core.ID]bool),
 		msgHandlers:   make(map[core.MsgType]core.Handler),
@@ -44,35 +46,32 @@ func NewCliClient(host string) *cliClient {
 
 	realm := core.URI("fooRealm")
 	details := map[string]interface{}{"foo": "bar"}
-	pc.sayHello(realm, details)
-	go pc.receiveLoop()
+	c.sayHello(realm, details)
+	go c.receiveLoop()
 
-	return pc
+	return c
 }
 
-func (p *cliClient) Register(u core.URI, h core.Handler) {
+func (c *cliClient) Register(u core.URI, h core.Handler) {
 	// concurrent access is not required
-	p.uriHandlers[u] = h
+	c.uriHandlers[u] = h
 }
-func (p *cliClient) RegisterMsgHandler(m core.MsgType, h core.Handler) {
-	p.msgHandlers[m] = h
+func (c *cliClient) RegisterMsgHandler(m core.MsgType, h core.Handler) {
+	c.msgHandlers[m] = h
 }
 
-func (p *cliClient) sayHello(realm core.URI, details map[string]interface{}) {
-	p.Send(&core.Hello{Realm: realm, Details: details})
+func (c *cliClient) sayHello(realm core.URI, details map[string]interface{}) {
+	c.Send(&core.Hello{Realm: realm, Details: details})
 }
 
 func (c *cliClient) processCli() {
-	fmt.Print("Enter text: \n")
 	for {
-		fmt.Println(">")
 		args, err := c.parseLine()
 		if err != nil {
 			log.Println("Error reading Cli line ", err)
 			continue
 		}
 		msg := strings.ToUpper(args[0])
-		log.Println("msg ", msg)
 		switch msg {
 		case "HELP":
 			fmt.Fprint(os.Stdout, "Commands: \n")
@@ -80,11 +79,19 @@ func (c *cliClient) processCli() {
 			fmt.Fprint(os.Stdout, "  PUB Topic \n")
 			fmt.Fprint(os.Stdout, "  EXIT \n")
 		case "PUB":
-			if len(args) == 1 {
-				log.Println("PUB Void Topic")
+			if len(args) < 3 {
+				log.Println("Invalid parameters: PUB Topic Message")
 				continue
 			}
-			pub := &core.Publish{Request: core.NewId(), Options: map[string]interface{}{"foo": "bar"}, Topic: core.Topic(args[1])}
+
+			message := strings.Join(args[2:], " ")
+			item := map[string]interface{}{"nick": "CliSession", "message": message}
+			pub := &core.Publish{
+				Request:   core.NewId(),
+				Options:   map[string]interface{}{"acknowledge": true},
+				Topic:     core.Topic(args[1]),
+				Arguments: []interface{}{item},
+			}
 			c.Send(pub)
 		case "SUB":
 			if len(args) == 1 {
@@ -100,11 +107,13 @@ func (c *cliClient) processCli() {
 				continue
 			}
 			call := &core.Call{
-				Request:  core.NewId() ,
+				Request:   core.NewId(),
 				Procedure: core.URI(args[1]),
 				Arguments: []interface{}{"bar", 1},
 			}
 			c.Send(call)
+		case "ID":
+			log.Println("I am ", c.ID())
 		case "EXIT":
 			log.Println("Exit Cli client")
 			close(c.done)
@@ -126,8 +135,26 @@ func (p *cliClient) receiveLoop() {
 				log.Println("Websocket Chann rcv closed, return ")
 				return
 			}
-			log.Println("Websocket Chann rcv ", msg.MsgType())
-			log.Println(msg)
+			log.Println("Cli receive: ", msg.MsgType())
+			//log.Println(msg)
+			if r, ok := msg.(*core.Result); ok {
+				if len(r.ArgumentsKw) > 0 {
+					//format table results
+					p.printTableFromMap(r.ArgumentsKw)
+				}
+				if len(r.Arguments) > 0 {
+					p.printTableFromList("list", r.Arguments)
+				}
+			}
+			if r, ok := msg.(*core.Event); ok {
+				if len(r.Arguments) > 0 {
+					var message string
+					if detailsMap, ok := r.Arguments[0].(map[string]interface{}); ok {
+						message = detailsMap["message"].(string)
+					}
+					log.Printf("Topic: %s Message: %s \n", r.Details["topic"], message)
+				}
+			}
 		case <-p.done:
 			return
 		}
@@ -150,27 +177,37 @@ func (c *cliClient) parseLine() (args []string, err error) {
 
 	return
 }
-func (p *cliClient) handleCall(call *core.Call) core.Message {
-	handler, ok := p.uriHandlers[call.Procedure]
-	if !ok {
-		uri := "Client Handler not found"
-		log.Print(uri)
-		return &core.Error{
-			Error: core.URI(uri),
+
+func (c *cliClient) printTableFromList(k string, mv []interface{}) {
+	table := tablewriter.NewWriter(os.Stdout)
+	table.SetHeader([]string{k, "value"})
+	for _, v := range mv {
+		entry := []string{k, fmt.Sprintf("%s", v)}
+		table.Append(entry)
+	}
+	table.Render()
+}
+
+func (c *cliClient) printTableFromMap(m map[string]interface{}) {
+	for k, v := range m {
+		table := tablewriter.NewWriter(os.Stdout)
+		if mv, ok := v.(map[string]interface{}); ok {
+			var typV interface{}
+			for x, y := range mv {
+				entry := []string{fmt.Sprintf("%s", x), fmt.Sprintf("%s", y)}
+				table.Append(entry)
+				typV = y
+			}
+			if len(mv) != 0 {
+				table.SetHeader([]string{k, reflect.TypeOf(typV).String()})
+				table.Render()
+			}
+		}
+
+		if mv, ok := v.([]interface{}); ok {
+			c.printTableFromList(k, mv)
 		}
 	}
-
-	response, err := handler(call)//@TODO: Peer removed!
-	if err != nil {
-		uri := "Client Error invoking Handler"
-		log.Print(uri, err)
-
-		return &core.Error{
-			Error: core.URI(uri),
-		}
-	}
-
-	return response
 }
 
 func main() {
