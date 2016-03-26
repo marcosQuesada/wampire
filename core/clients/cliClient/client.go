@@ -11,18 +11,17 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
-	"reflect"
 	"strings"
 	"syscall"
 )
 
+type clientMsgHandler func(core.Message) error
 type cliClient struct {
-	core.Peer
-	subscriptions map[core.ID]bool
-	msgHandlers   map[core.MsgType]core.Handler
-	uriHandlers   map[core.URI]core.Handler
-	reader        *bufio.Reader
-	done          chan struct{}
+	*core.Session
+
+	msgHandlers map[core.MsgType]clientMsgHandler
+	reader      *bufio.Reader
+	done        chan struct{}
 }
 
 func NewCliClient(host string) *cliClient {
@@ -34,14 +33,19 @@ func NewCliClient(host string) *cliClient {
 	}
 
 	log.Printf("connected to %s \n", u.String())
+	peer := core.NewWebsockerPeer(conn, core.CLIENT)
 
 	c := &cliClient{
-		Peer:          core.NewWebsockerPeer(conn, core.CLIENT),
-		subscriptions: make(map[core.ID]bool),
-		msgHandlers:   make(map[core.MsgType]core.Handler),
-		uriHandlers:   make(map[core.URI]core.Handler),
-		reader:        bufio.NewReader(os.Stdin),
-		done:          make(chan struct{}),
+		Session: core.NewSession(peer),
+		reader:  bufio.NewReader(os.Stdin),
+		done:    make(chan struct{}),
+	}
+
+	// Declare local handlers
+	c.msgHandlers = map[core.MsgType]clientMsgHandler{
+		core.WELCOME: c.welcome,
+		core.RESULT:  c.result,
+		core.EVENT:   c.event,
 	}
 
 	realm := core.URI("fooRealm")
@@ -52,11 +56,7 @@ func NewCliClient(host string) *cliClient {
 	return c
 }
 
-func (c *cliClient) Register(u core.URI, h core.Handler) {
-	// concurrent access is not required
-	c.uriHandlers[u] = h
-}
-func (c *cliClient) RegisterMsgHandler(m core.MsgType, h core.Handler) {
+func (c *cliClient) RegisterMsgHandler(m core.MsgType, h clientMsgHandler) {
 	c.msgHandlers[m] = h
 }
 
@@ -135,26 +135,16 @@ func (p *cliClient) receiveLoop() {
 				log.Println("Websocket Chann rcv closed, return ")
 				return
 			}
-			log.Println("Cli receive: ", msg.MsgType())
-			//log.Println(msg)
-			if r, ok := msg.(*core.Result); ok {
-				if len(r.ArgumentsKw) > 0 {
-					//format table results
-					p.printTableFromMap(r.ArgumentsKw)
+
+			if handler, ok := p.msgHandlers[msg.MsgType()]; ok {
+				err := handler(msg)
+				if err != nil {
+					log.Println("Error executing client message handler")
 				}
-				if len(r.Arguments) > 0 {
-					p.printTableFromList("list", r.Arguments)
-				}
+				continue
 			}
-			if r, ok := msg.(*core.Event); ok {
-				if len(r.Arguments) > 0 {
-					var message string
-					if detailsMap, ok := r.Arguments[0].(map[string]interface{}); ok {
-						message = detailsMap["message"].(string)
-					}
-					log.Printf("Topic: %s Message: %s \n", r.Details["topic"], message)
-				}
-			}
+			log.Println("Unhandled client message: ", msg.MsgType())
+
 		case <-p.done:
 			return
 		}
@@ -178,36 +168,69 @@ func (c *cliClient) parseLine() (args []string, err error) {
 	return
 }
 
-func (c *cliClient) printTableFromList(k string, mv []interface{}) {
+func (c *cliClient) printTableFromList(key string, values []interface{}) {
 	table := tablewriter.NewWriter(os.Stdout)
-	table.SetHeader([]string{k, "value"})
-	for _, v := range mv {
-		entry := []string{k, fmt.Sprintf("%s", v)}
+	table.SetHeader([]string{key, "value"})
+	for _, v := range values {
+		entry := []string{key, fmt.Sprintf("%s", v)}
 		table.Append(entry)
 	}
 	table.Render()
 }
 
+// Expects map[string]map[string]interface{}
 func (c *cliClient) printTableFromMap(m map[string]interface{}) {
-	for k, v := range m {
+	// iterate on each result set
+	for mainKey, samples := range m {
 		table := tablewriter.NewWriter(os.Stdout)
-		if mv, ok := v.(map[string]interface{}); ok {
-			var typV interface{}
-			for x, y := range mv {
-				entry := []string{fmt.Sprintf("%s", x), fmt.Sprintf("%s", y)}
+		if values, ok := samples.(map[string]interface{}); ok {
+			for key, value := range values {
+				entry := []string{fmt.Sprintf("%s", key), fmt.Sprintf("%s", value)}
 				table.Append(entry)
-				typV = y
 			}
-			if len(mv) != 0 {
-				table.SetHeader([]string{k, reflect.TypeOf(typV).String()})
+			if len(values) != 0 {
+				table.SetHeader([]string{mainKey, "Value"})
 				table.Render()
 			}
 		}
-
-		if mv, ok := v.([]interface{}); ok {
-			c.printTableFromList(k, mv)
+		// if entry samples ara a list handle it
+		if mv, ok := samples.([]interface{}); ok {
+			c.printTableFromList(mainKey, mv)
 		}
 	}
+}
+
+func (p *cliClient) welcome(msg core.Message) error {
+	r := msg.(*core.Welcome)
+	log.Printf("Welcome Details: %s \n", r.Details)
+	return nil
+}
+
+func (p *cliClient) result(msg core.Message) error {
+	r := msg.(*core.Result)
+	log.Printf("RESULT %d", r.Request)
+	if len(r.ArgumentsKw) > 0 {
+		//format table results
+		p.printTableFromMap(r.ArgumentsKw)
+	}
+	if len(r.Arguments) > 0 {
+		p.printTableFromList("list", r.Arguments)
+	}
+
+	return nil
+}
+
+func (p *cliClient) event(msg core.Message) error {
+	r := msg.(*core.Event)
+	if len(r.Arguments) > 0 {
+		var message string
+		if detailsMap, ok := r.Arguments[0].(map[string]interface{}); ok {
+			message = detailsMap["message"].(string)
+		}
+		log.Printf("EVENT Topic: %s Message: %s \n", r.Details["topic"], message)
+	}
+
+	return nil
 }
 
 func main() {
