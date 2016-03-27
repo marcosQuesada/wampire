@@ -11,6 +11,8 @@ WAMPire
 - [x] CLI WAMP client
 - [x] HTML WAMP client
 - [x] Routed RPC
+- [x] Session Meta Procedures
+- [ ] Session Meta Events
 - [ ] Challenge Response Authentication
 - [ ] WAMP advanced profile 
 - [ ] WAMP distributed architecture 
@@ -20,9 +22,11 @@ WAMPire
   * Publish/Subscribe 
   * RPC Call/Invocation/Yield/Result
  * RPC introspection tools
-  *  wampire.core.router.sessions: Audit active router sessions
-  *  wampire.core.broker.dump: Explore broker topics and subscribers
-  *  wampire.core.dealer.dump: Explore dealer procedures and registrations
+  * wampire.session.list: List all active sessions
+  * wampire.session.count : Count all active sessions
+  * wampire.session.get : Introspect a Session
+  * wampire.core.broker.dump: Explore broker topics and subscribers
+  * wampire.core.dealer.dump: Explore dealer procedures and registrations
 
 ## Installation
 Install library as package:
@@ -87,7 +91,7 @@ Where:
 
 ### RPC introspection tools:
   Wampire registered procedures:
-   ```bash
+```bash
    call wampire.core.list
    2016/03/28 00:37:12.978673 client.go:224: RESULT 2
    +------+--------------------------+
@@ -102,9 +106,9 @@ Where:
    | list | wampire.core.help        |
    | list | wampire.core.list        |
    +------+--------------------------+
-    ```
+```
   Router introspection, list current sessions:
- ```bash
+```bash
  call wampire.core.session.list
  2016/03/27 22:45:25.085312 client.go:220: RESULT 4
  +------+--------------------------------------+
@@ -119,7 +123,7 @@ Where:
  +------+--------------------------------------+
 ```
   
- Router total current session:  
+ Router total active session:  
 ```bash
   call wampire.session.count
   
@@ -131,7 +135,7 @@ Where:
 ```
  
  Session introspection:
- ```bash
+```bash
  call wampire.session.get cf50900f-7989-54fa-42ab-a92b803a0abf
  2016/03/28 00:46:27.238950 client.go:224: RESULT 1
  +---------------+---------------------------+
@@ -145,11 +149,11 @@ Where:
  +---------------+-----------------------+
  |            22 | io.crossbar.demo.mul2 |
  +---------------+-----------------------+
- ```  
+```  
  
  Broker introspection, list all subscribers:
 
- ```bash
+```bash
  call wamp.subscription.list_subscribers
  2016/03/28 01:12:44.759733 client.go:224: RESULT 5
  +---------------+--------------------------------------+
@@ -163,10 +167,10 @@ Where:
  |            31 | e274d51a-c9ad-59db-476f-097ca58b10ab |
  |            32 | e274d51a-c9ad-59db-476f-097ca58b10ab |
  +---------------+--------------------------------------+
- ```
+```
   
  Count all subscribers
- ```bash
+```bash
  call wampire.subscription.count_subscribers
  2016/03/28 01:13:09.280094 client.go:224: RESULT 7
  +------+----------------+
@@ -174,10 +178,10 @@ Where:
  +------+----------------+
  | list | %!s(float64=7) |
  +------+----------------+
- ```
+```
  
  List all topics:
- ```bash
+```bash
  call wampire.subscription.list_topics
  2016/03/28 01:12:56.471340 client.go:224: RESULT 6
  +--------+---------------------------+
@@ -188,10 +192,10 @@ Where:
  | topics | io.crossbar.demo.chat.ch3 |
  | topics | fooTopic                  |
  +--------+---------------------------+
- ```
+```
  
  List all subscribed sessions by topic:
- ```bash
+```bash
  call wamp.subscription.list_topic_subscribers io.crossbar.demo.chat.ch1
  2016/03/28 01:13:39.663491 client.go:224: RESULT 8
  +------+--------------------------------------+
@@ -203,8 +207,8 @@ Where:
  +------+--------------------------------------+
 ```
 
-  Dealer introspection:
- ```bash
+  Dealer introspection, procedures and registrations:
+```bash
  call wampire.core.dealer.dump
  2016/03/27 22:45:41.861125 client.go:220: RESULT 6
  +---------------+--------------------------------------+
@@ -229,4 +233,4 @@ Where:
  | io.crossbar.demo.mul2        | %!s(float64=17) |
  | wampire.core.broker.dump     | %!s(float64=10) |
  +------------------------------+-----------------+
- ```
+```
