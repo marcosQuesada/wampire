@@ -122,12 +122,21 @@ func (r *Router) authenticate(msg Message) (Message, bool, error) {
 			"broker" :  map[string]interface{}{
 				"features" : map[string]interface{}{
 					"publisher_identification": true,
+					"pattern_based_subscription": true,
+					"subscription_meta_api": true,
+					"subscription_revocation": true,
+					"publisher_exclusion": true,
+					"subscriber_blackwhite_listing": true,
 				},
 			},
 			"dealer" :  map[string]interface{}{
 				"features" : map[string]interface{}{
 					"caller_identification": true,
 					"progressive_call_results": true,
+					"pattern_based_registration": true,
+					"registration_revocation": true,
+					"shared_registration": true,
+					"registration_meta_api": true,
 				},
 			},
 			"caller" :  map[string]interface{}{
