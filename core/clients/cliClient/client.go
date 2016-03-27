@@ -201,11 +201,15 @@ func (c *cliClient) printTableFromMap(m map[string]interface{}) {
 				table.SetHeader([]string{mainKey, "Value"})
 				table.Render()
 			}
+			continue
 		}
 		// if entry samples ara a list handle it
 		if mv, ok := samples.([]interface{}); ok {
 			c.printTableFromList(mainKey, mv)
+			continue
 		}
+
+		fmt.Printf("%s: %s\n", mainKey, samples)
 	}
 }
 

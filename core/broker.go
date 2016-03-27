@@ -35,8 +35,8 @@ func (b *defaultBroker) Subscribe(msg Message, s *Session) Message {
 
 	subscribe, ok := msg.(*Subscribe)
 	if !ok {
-		log.Fatal("Unexpected type on publish ", msg.MsgType())
-		panic("Unexpected type on publish")
+		log.Fatal("Unexpected type on subscribe ", msg.MsgType())
+		panic("Unexpected type on subscribe")
 	}
 
 	_, ok = b.topics[subscribe.Topic]
@@ -178,20 +178,17 @@ func (b *defaultBroker) Publish(msg Message, p *Session) Message {
 
 func (b *defaultBroker) Handlers() map[URI]Handler {
 	return map[URI]Handler{
-		"wampire.core.broker.dump": b.dumpBroker,
+		"wampire.subscription.list_subscribers":        b.listSubscribers,
+		"wampire.subscription.list_topics":             b.listTopics,
+		"wampire.subscription.count_subscribers":       b.countSubscribers,
+		"wampire.subscription.list_topic_subscribers": b.listTopicSubscriptions,
 	}
 }
 
-func (b *defaultBroker) dumpBroker(msg Message) (Message, error) {
+func (b *defaultBroker) listSubscribers(msg Message) (Message, error) {
 	b.mutex.RLock()
-	topics := b.topics
 	subscriptions := b.subscriptions
 	b.mutex.RUnlock()
-
-	list := []interface{}{}
-	for topic, _ := range topics {
-		list = append(list, topic)
-	}
 
 	subs := map[string]interface{}{}
 	for id, s := range subscriptions {
@@ -199,7 +196,6 @@ func (b *defaultBroker) dumpBroker(msg Message) (Message, error) {
 	}
 	inv := msg.(*Invocation)
 	kw := map[string]interface{}{
-		"topics":        list,
 		"subscriptions": subs,
 	}
 
@@ -207,5 +203,75 @@ func (b *defaultBroker) dumpBroker(msg Message) (Message, error) {
 		Request:     inv.Request,
 		ArgumentsKw: kw,
 	}, nil
+}
 
+func (b *defaultBroker) listTopics(msg Message) (Message, error) {
+	b.mutex.RLock()
+	topics := b.topics
+	b.mutex.RUnlock()
+
+	topicList := []interface{}{}
+	for topic, _ := range topics {
+		topicList = append(topicList, topic)
+	}
+
+	inv := msg.(*Invocation)
+	kw := map[string]interface{}{
+		"topics": topicList,
+	}
+
+	return &Yield{
+		Request:     inv.Request,
+		ArgumentsKw: kw,
+	}, nil
+}
+
+func (b *defaultBroker) countSubscribers(msg Message) (Message, error) {
+	b.mutex.RLock()
+	subscriptions := b.subscriptions
+	b.mutex.RUnlock()
+
+	inv := msg.(*Invocation)
+
+	return &Yield{
+		Request:   inv.Request,
+		Arguments: []interface{}{len(subscriptions)},
+	}, nil
+}
+
+func (b *defaultBroker) listTopicSubscriptions(msg Message) (Message, error) {
+	inv := msg.(*Invocation)
+	log.Println("Getting session ", inv.Arguments)
+	if len(inv.Arguments) < 1 {
+		error := "Void ID argument on list topic subscriptions"
+		log.Println(error)
+		return nil, fmt.Errorf(error)
+	}
+	topic := Topic(inv.Arguments[0].(string))
+	b.mutex.RLock()
+	subscribers, ok := b.topics[topic]
+	subscriptions := b.subscriptions
+	b.mutex.RUnlock()
+	if !ok {
+		uri := fmt.Sprintf("Topic %s not found", topic)
+		log.Println(uri, uri)
+
+		return nil, fmt.Errorf("%s")
+	}
+	list := []interface{}{}
+	for id, _ := range subscribers {
+		s, ok := subscriptions[id]
+		if !ok {
+			uri := fmt.Sprintf("Topic %s Subscriptior %d not found", topic, id)
+			log.Println(uri, uri)
+
+			continue
+		}
+		list = append(list, s.ID())
+	}
+
+	return &Yield{
+		Request:   inv.Request,
+		Arguments: list,
+	}, nil
 }

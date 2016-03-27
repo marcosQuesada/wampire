@@ -54,7 +54,7 @@ func (r *Router) Accept(p Peer) error {
 		}
 
 		response, auth, err := r.authenticate(h)
-		if err!= nil {
+		if err != nil {
 			log.Println("Error authenticating")
 		}
 		p.Send(response)
@@ -96,67 +96,67 @@ func (r *Router) authenticate(msg Message) (Message, bool, error) {
 	}
 	if !auth {
 		return &Abort{
-			Details: map[string]interface{}{"message":"The realm does not exist."},
-			Reason: URI("wamp.error.no_such_realm"),
+			Details: map[string]interface{}{"message": "The realm does not exist."},
+			Reason:  URI("wamp.error.no_such_realm"),
 		}, false, nil
 	}
 
 	details := map[string]interface{}{
 		"roles": map[string]interface{}{
-			"publisher" :  map[string]interface{}{
-				"features" : map[string]interface{}{
-					"publisher_identification": true,
+			"publisher": map[string]interface{}{
+				"features": map[string]interface{}{
+					"publisher_identification":      true,
 					"subscriber_blackwhite_listing": true,
-					"publisher_exclusion": true,
+					"publisher_exclusion":           true,
 				},
 			},
-			"subscriber" :  map[string]interface{}{
-				"features" : map[string]interface{}{
+			"subscriber": map[string]interface{}{
+				"features": map[string]interface{}{
 					"publisher_identification": true,
 					//"publication_trustlevels": true,
 					"pattern_based_subscription": true,
-					"subscription_revocation": true,
+					"subscription_revocation":    true,
 					//"event_history": true,
 				},
 			},
-			"broker" :  map[string]interface{}{
-				"features" : map[string]interface{}{
+			"broker": map[string]interface{}{
+				"features": map[string]interface{}{
 					"publisher_identification": true,
-/*					"pattern_based_subscription": true,
-					"subscription_meta_api": true,
-					"subscription_revocation": true,
-					"publisher_exclusion": true,
-					"subscriber_blackwhite_listing": true,*/
+					/*					"pattern_based_subscription": true,
+										"subscription_meta_api": true,
+										"subscription_revocation": true,
+										"publisher_exclusion": true,
+										"subscriber_blackwhite_listing": true,*/
 				},
 			},
-			"dealer" :  map[string]interface{}{
-				"features" : map[string]interface{}{
+			"dealer": map[string]interface{}{
+				"features": map[string]interface{}{
 					"caller_identification": true,
-/*					"progressive_call_results": true,
-					"pattern_based_registration": true,
-					"registration_revocation": true,
-					"shared_registration": true,
-					"registration_meta_api": true,*/
+					/*					"progressive_call_results": true,
+										"pattern_based_registration": true,
+										"registration_revocation": true,
+										"shared_registration": true,
+										"registration_meta_api": true,*/
 				},
 			},
-			"caller" :  map[string]interface{}{
-				"features" : map[string]interface{}{
+			"caller": map[string]interface{}{
+				"features": map[string]interface{}{
 					"caller_identification": true,
 					//"call_timeout": true,
 					//"call_canceling": true,
 					"progressive_call_results": true,
 				},
 			},
-			"callee" :  map[string]interface{}{
-				"features" : map[string]interface{}{
+			"callee": map[string]interface{}{
+				"features": map[string]interface{}{
 					"caller_identification": true,
 					//"call_trustlevels": true,
 					"pattern_based_registration": true,
-					"shared_registration": true,
+					"shared_registration":        true,
 					//"call_timeout": true,
 					//"call_canceling": true,
 					"progressive_call_results": true,
-					"registration_revocation": true,
+					"registration_revocation":  true,
 				},
 			},
 		},
@@ -226,7 +226,7 @@ func (r *Router) handleSession(s *Session) {
 				r.Dealer.Cancel(msg, s)
 
 			case *Yield:
-				log.Println("Received Yield, forward this to dealer ", msg.(*Yield).Arguments)
+				log.Println("Received Yield, forward this to dealer ", msg.(*Yield))
 				r.Dealer.Yield(msg, s)
 
 			//@TODO: Communication between wamp nodes
@@ -305,7 +305,9 @@ func (r *Router) waitUntilVoid() chan struct{} {
 
 func (r *Router) Handlers() map[URI]Handler {
 	return map[URI]Handler{
-		"wampire.core.router.sessions": r.listSessions,
+		"wampire.session.list":  r.listSessions,
+		"wampire.session.count": r.countSessions,
+		"wampire.session.get":   r.getSession,
 	}
 }
 
@@ -325,4 +327,56 @@ func (r *Router) listSessions(msg Message) (Message, error) {
 		Arguments: list,
 	}, nil
 
+}
+
+func (r *Router) countSessions(msg Message) (Message, error) {
+	r.mutex.RLock()
+	sessions := r.sessions
+	r.mutex.RUnlock()
+	inv := msg.(*Invocation)
+
+	return &Yield{
+		Request:   inv.Request,
+		Arguments: []interface{}{len(sessions)},
+	}, nil
+}
+
+func (r *Router) getSession(msg Message) (Message, error) {
+	r.mutex.RLock()
+	sessions := r.sessions
+	r.mutex.RUnlock()
+	inv := msg.(*Invocation)
+	log.Println("Getting session ", inv.Arguments)
+	if len(inv.Arguments) < 1 {
+		error := "Void ID argument on get session"
+		log.Println(error)
+		return nil, fmt.Errorf(error)
+	}
+
+	s, ok := sessions[PeerID(inv.Arguments[0].(string))]
+	log.Println("Getting session ", inv.Arguments, "ok:", ok, s)
+	if !ok {
+		error := "Router session ID %d not found "
+		log.Println(error)
+		return nil, fmt.Errorf(error)
+	}
+
+	subs := map[string]interface{}{}
+	for id, topic := range s.getSubscriptions() {
+		subs[fmt.Sprintf("%d", id)] = topic
+	}
+	regs := map[string]interface{}{}
+	for id, uri := range s.getRegistrations() {
+		regs[fmt.Sprintf("%d", id)] = uri
+	}
+	kw := map[string]interface{}{
+		"subscriptions": subs,
+		"registrations": regs,
+		"initTs":        s.initTs,
+	}
+
+	return &Yield{
+		Request:     inv.Request,
+		ArgumentsKw: kw,
+	}, nil
 }

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"sync"
+	"time"
 )
 
 type Handler func(Message) (Message, error)
@@ -14,6 +15,7 @@ type Session struct {
 	registrations map[ID]URI      // Handler Registrations to URI
 	handlers      map[URI]Handler // Handlers by URI
 	mutex         *sync.RWMutex
+	initTs        time.Time
 }
 
 func NewSession(p Peer) *Session {
@@ -23,6 +25,7 @@ func NewSession(p Peer) *Session {
 		registrations: make(map[ID]URI),
 		handlers:      make(map[URI]Handler),
 		mutex:         &sync.RWMutex{},
+		initTs:        time.Now(),
 	}
 }
 
@@ -134,4 +137,18 @@ func (s *Session) removeSubscription(id ID) error {
 	delete(s.subscriptions, id)
 
 	return nil
+}
+
+func (s *Session) getSubscriptions() map[ID]Topic {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+
+	return s.subscriptions
+}
+
+func (s *Session) getRegistrations() map[ID]URI {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+
+	return s.registrations
 }
