@@ -59,6 +59,8 @@ func (s *JsonSerializer) toList(msg Message) []interface{} {
 	return ret
 }
 
+// @TODO: It's just handling void fields on the final part of the messages
+// what's about void fields in the middle of the message??
 func (s *JsonSerializer) toMessage(l []interface{}) (Message, error) {
 	msgType := MsgType(int(l[0].(float64)))
 	msg := msgType.NewMessage()

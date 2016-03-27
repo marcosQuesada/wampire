@@ -109,10 +109,15 @@ func (c *cliClient) processCli() {
 				log.Println("CALL Void URI")
 				continue
 			}
+			cappedArgs := args[2:]
+			var newArgs []interface{}
+			for i:=0; i < len(cappedArgs); i++ {
+				newArgs = append(newArgs, cappedArgs[i])
+			}
 			call := &core.Call{
 				Request:   core.NewId(),
 				Procedure: core.URI(args[1]),
-				Arguments: []interface{}{"bar", 1},
+				Arguments: newArgs,
 			}
 			c.Send(call)
 		case "ID":
