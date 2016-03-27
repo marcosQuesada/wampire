@@ -41,6 +41,36 @@
 
       <div id="demo_body">
          <div class="chat_channel_selector">
+            <select id="subscribeChan">
+               <option>ch1</option>
+               <option>ch2</option>
+               <option>ch3</option>
+               <option>ch4</option>
+               <option>ch5</option>
+            </select>
+            <button type="button" onclick="subscribeChannel();">register</button>
+            <p>
+               URI:
+               <input id="call_uri" type="text" value="io.crossbar.demo.echo"></input>
+               data:
+               <input id="call_data" type="text"></input>
+               <button type="button" onclick="wamp_call();">call</button>
+            </p>
+            <p>
+               URI:
+               <input id="reg_uri" type="text" value="io.crossbar.demo.mul2"></input>
+               function:
+               <select id="reg_fun">
+                  <option>mul2</option>
+                  <option>square</option>
+                  <option>add3</option>
+                  <option>add2</option>
+                  <option>sub2</option>
+                  <option>hello</option>
+               </select>
+               <button type="button" onclick="registerProcedure();">register</button>
+            </p>
+
             <a href="#ch1">Channel 1</a>
          </div>
          <div class="chat_channel_selector">
@@ -116,8 +146,71 @@
       <![endif]-->
 
       <script type="text/javascript" src="js/jquery.min.js"></script>
-      <script>
-         AUTOBAHN_DEBUG = true;
+      <script type="text/javascript">
+         //AUTOBAHN_DEBUG = true;
+         function subscribeChannel() {
+               var channel = $('#subscribeChan').val();
+               console.log("value is ", channel);
+               var newUrl = window.location.href;
+               window.location.href = newUrl+"#"+channel;
+         }
+
+         function registerProcedure() {
+               var procedure = $('#reg_fun').val();
+               console.log("procedure is ", procedure);
+               sess.register(demoPrefix+"."+procedure, get_reg_fun(procedure));
+         }
+
+         function wamp_call() {
+               var CallUri = $('#call_uri').val();
+               var CallData = $('#call_data').val();
+               var res = CallData.split(",");
+               console.log("call uri", CallUri, res);
+               sess.call(CallUri, res).then( //
+               function (res) {
+                  console.log("Result:", res);
+               }
+            );
+         }
+         // declared procedures
+         var square = function(X) {return X*X;};
+         var add3 = function(X) {return X+3;};
+         var sub2 = function(X) {return X-2;};
+         var hello = function(X) {
+                 console.log("CALL Hello ", X);
+                 return "Hello "+X;
+             };
+         var add2 = function add2(args) {
+            console.log(args);
+            result = parseInt(args[0], 10) + parseInt(args[1], 10);
+            console.log("Mul 2 invoked ", args[0], args[1], result);
+            return result;
+         }
+         var mul2 = function(args) {
+               X = args[0]
+               Y = args[1]
+               result = parseInt(X, 10) * parseInt(Y, 10);
+               console.log("Mul 2 invoked ", X, Y, result);
+
+               return result;
+            };
+         function get_reg_fun(Name) {
+                if(Name == "square") {
+                    return square;
+                } else if(Name == "add3") {
+                    return add3;
+                } else if(Name == "sub2") {
+                    return sub2;
+                } else if(Name == "hello") {
+                    return hello;
+                } else if(Name == "mul2") {
+                    return mul2;
+                } else if(Name == "add2") {
+                    return add2;
+                }
+
+            }
+
       </script>
       <!-- <script src="https://autobahn.s3.amazonaws.com/autobahnjs/latest/autobahn.min.jgz"></script>-->
       <script src="js/autobahn.min.js"></script>

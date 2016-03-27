@@ -64,7 +64,7 @@ func (s *Session) do(i *Invocation) error {
 	handler, ok := s.handlers[uri]
 	s.mutex.RUnlock()
 	if !ok {
-		log.Println("Handler not found locally, forward it to remote peer ", uri)
+		log.Println("Handler not found locally, forward it to remote peer ", s.ID(), "uri: ", uri)
 		s.Send(i)
 
 		return nil

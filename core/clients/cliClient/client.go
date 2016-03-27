@@ -118,6 +118,7 @@ func (c *cliClient) processCli() {
 				Request:   core.NewId(),
 				Procedure: core.URI(args[1]),
 				Arguments: newArgs,
+				Options: map[string]interface{}{"receive_progress":true},
 			}
 			c.Send(call)
 		case "ID":
