@@ -2,9 +2,11 @@ package core
 
 import (
 	"encoding/json"
-	"reflect"
 	"fmt"
 	"github.com/mitchellh/mapstructure"
+	"reflect"
+	//"github.com/socialpoint/sprocket/pkg/dumper"
+"log"
 )
 
 type Serializer interface {
@@ -43,17 +45,17 @@ func (s *JsonSerializer) Deserialize(data []byte) (Message, error) {
 	return s.toMessage(payload)
 }
 
-func (s *JsonSerializer) toList(msg Message) []interface{}{
+func (s *JsonSerializer) toList(msg Message) []interface{} {
 	ret := []interface{}{int(msg.MsgType())}
 	val := reflect.ValueOf(msg).Elem()
 
 	// @TODO: Handle tag annotations
-	for i:=0; i < val.Type().NumField(); i++ {
-/*		tag := val.Type().Field(i).Tag.Get("wamp")
-		log.Println("Tag is ", tag)
-		if strings.Contains(tag, "omitempty") || val.Field(i).Len() == 0 {
-			break
-		}*/
+	for i := 0; i < val.Type().NumField(); i++ {
+		/*		tag := val.Type().Field(i).Tag.Get("wamp")
+				log.Println("Tag is ", tag)
+				if strings.Contains(tag, "omitempty") || val.Field(i).Len() == 0 {
+					break
+				}*/
 		ret = append(ret, val.Field(i).Interface())
 	}
 	return ret
@@ -71,7 +73,10 @@ func (s *JsonSerializer) toMessage(l []interface{}) (Message, error) {
 
 	msgMap := make(map[string]interface{}, len(nl))
 	for i:=0; i < val.Type().NumField(); i++ {
-		msgMap[typ.Field(i).Name] = nl[i]
+		//On void extra fields do nothing
+		if len(nl)>i {
+			msgMap[typ.Field(i).Name] = nl[i]
+		}
 	}
 
 	err := mapstructure.Decode(msgMap, msg)
