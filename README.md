@@ -10,6 +10,7 @@ WAMPire
 - [x] WAMP basic profile router
 - [x] CLI WAMP client
 - [x] HTML WAMP client
+- [x] Routed RPC
 - [ ] Challenge Response Authentication
 - [ ] WAMP advanced profile 
 - [ ] WAMP distributed architecture 
@@ -39,7 +40,7 @@ go get -t ./...
 ```bash
 go run main.go -port=8000
 ```
-   Open your browser on: http://localhost:8000 and enjoy the chat demo
+   Open your browser on: http://localhost:8000 and enjoy the chat demo, web client buit with [Autobahn.js](http://autobahn.ws/)
 
  * CLI Client:
 ```bash
