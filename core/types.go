@@ -237,9 +237,9 @@ func (msg *Welcome) MsgType() MsgType {
 	return WELCOME
 }
 
+//  [3, {"message": "The realm does not exist."},"wamp.error.no_such_realm"]
 // [ABORT, Details|dict, Reason|uri]
 type Abort struct {
-	Id      ID
 	Details map[string]interface{}
 	Reason  URI
 }
@@ -248,6 +248,19 @@ func (msg *Abort) MsgType() MsgType {
 	return ABORT
 }
 
+/**
+[4, "wampcra", {
+	"challenge": {
+		"nonce": "bp7d9mJ4RQlCVN7v",
+		"authprovider": "static",
+		"authid": "joe",
+		"timestamp": "2015-08-24T12:12:55.812Z",
+		"authrole": "frontend",
+		"authmethod": "wampcra",
+		"session": 1131593967612115
+	}
+}]
+ */
 // [CHALLENGE, AuthMethod|string, Extra|dict]
 type Challenge struct {
 	AuthMethod string
@@ -392,8 +405,8 @@ func (msg *Event) MsgType() MsgType {
 // [CALL, Request|id, Options|dict, Procedure|uri, Arguments|list, ArgumentsKw|dict]
 type Call struct {
 	Request     ID
-	Procedure   URI
 	Options     map[string]interface{}
+	Procedure   URI
 	Arguments   []interface{}          `wamp:"omitempty"`
 	ArgumentsKw map[string]interface{} `wamp:"omitempty"`
 }

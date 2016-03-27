@@ -53,19 +53,17 @@ func (r *Router) Accept(p Peer) error {
 			return fmt.Errorf(err)
 		}
 
-		var response Message
-		if r.authenticate(h) {
-			response = &Abort{
-			//Id: h.Id,
-			}
-		}
-
-		//answer welcome
-		response = &Welcome{
-			Id:      NewId(),
-			Details: h.Details,
+		response, auth, err := r.authenticate(h)
+		if err!= nil {
+			log.Println("Error authenticating")
 		}
 		p.Send(response)
+
+		if !auth {
+			log.Println("Authorization denegated, abort")
+
+			return nil
+		}
 
 		session := NewSession(p)
 		r.register(session)
@@ -91,12 +89,53 @@ func (r *Router) SetAuthenticator(a Authenticator) {
 	r.auth = a
 }
 
-func (r *Router) authenticate(msg Message) bool {
+func (r *Router) authenticate(msg Message) (Message, bool, error) {
+	var auth bool = true
 	if r.auth != nil {
-		return r.auth(msg)
+		auth = r.auth(msg)
+	}
+	if !auth {
+		return &Abort{
+			Details: map[string]interface{}{"message":"The realm does not exist."},
+			Reason: URI("wamp.error.no_such_realm"),
+		}, false, nil
 	}
 
-	return true
+	details := map[string]interface{}{
+		"roles": map[string]interface{}{
+			"publisher" :  map[string]interface{}{
+				"features" : map[string]interface{}{
+					"publisher_identification": true,
+				},
+			},
+			"subscriber" :  map[string]interface{}{
+				"features" : map[string]interface{}{
+					"publisher_identification": true,
+				},
+			},
+			"broker" :  map[string]interface{}{
+				"features" : map[string]interface{}{
+					"publisher_identification": true,
+				},
+			},
+			"dealer" :  map[string]interface{}{
+				"features" : map[string]interface{}{
+					"caller_identification": true,
+					"progressive_call_results": true,
+				},
+			},
+			"callee" :  map[string]interface{}{
+				"features" : map[string]interface{}{
+					"progressive_call_results": true,
+				},
+			},
+		},
+	}
+	//answer welcome
+	return &Welcome{
+		Id:      NewId(),
+		Details: details,
+	}, true, nil
 }
 
 func (r *Router) handleSession(s *Session) {

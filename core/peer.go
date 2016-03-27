@@ -156,7 +156,6 @@ func (p *webSocketPeer) readLoop() {
 			log.Println("Error reading Message on websocket Client", err)
 			return
 		}
-
 		message, err := p.serializer.Deserialize(data)
 		if err != nil {
 			log.Fatal("Fatal on deserialize ", err)
