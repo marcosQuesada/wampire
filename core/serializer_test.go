@@ -97,3 +97,39 @@ func TestListToMessage(t *testing.T) {
 		t.Error("Unexpected message Details")
 	}
 }
+
+func TestListToMessageOnVoidFields(t *testing.T) {
+	//[48,2332246451159040,{},"com.example.add2",[2,3]]
+	list := []interface{}{
+		float64(48), 2332246451159040, map[string]interface{}{}, URI("com.example.add2"),[]interface{}{2,3},
+	}
+	s := &JsonSerializer{}
+	hl, err := s.toMessage(list)
+	if err!= nil {
+		t.Error("Error converting to message ", err)
+	}
+
+	c, ok := hl.(*Call)
+	if !ok {
+		t.Error("Unexpected message type")
+	}
+
+	if c.Request != 2332246451159040 {
+		t.Error("Unexpected message Request ", c.Request)
+	}
+
+	if c.Procedure !=  URI("com.example.add2"){
+		t.Error("Unexpected message Details")
+	}
+
+	if len(c.Arguments) !=  2{
+		t.Error("Unexpected message Arguments")
+	}
+
+	if c.Arguments[0] !=  2{
+		t.Error("Unexpected message Arguments")
+	}
+	if c.Arguments[1] !=  3{
+		t.Error("Unexpected message Arguments")
+	}
+}
