@@ -44,8 +44,11 @@ func (s *Server) Run() {
 
 	// add http client if required
 	if s.httpCientPath != "" {
+		htmlClient := http.StripPrefix("/", http.FileServer(http.Dir("core/clients/htmlClient/priv/")))
+		router.PathPrefix("/priv").Handler(htmlClient)
+
 		httpDir := http.Dir(fmt.Sprintf("core/%s", s.httpCientPath))
-		htmlClient := http.StripPrefix("/", http.FileServer(httpDir))
+		htmlClient = http.StripPrefix("/", http.FileServer(httpDir))
 		router.PathPrefix("/").Handler(htmlClient)
 	}
 
