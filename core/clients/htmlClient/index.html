@@ -40,56 +40,55 @@
       </div>
 
       <div id="demo_body">
-         <div class="chat_channel_selector">
-            <select id="subscribeChan">
-               <option>ch1</option>
-               <option>ch2</option>
-               <option>ch3</option>
-               <option>ch4</option>
-               <option>ch5</option>
-            </select>
-            <button type="button" onclick="subscribeChannel();">register</button>
-            <p>
-               URI:
-               <input id="call_uri" type="text" value="io.crossbar.demo.echo"></input>
-               data:
-               <input id="call_data" type="text"></input>
-               <button type="button" onclick="wamp_call();">call</button>
-            </p>
-            <p>
-               URI:
-               <input id="reg_uri" type="text" value="io.crossbar.demo.mul2"></input>
-               function:
-               <select id="reg_fun">
-                  <option>mul2</option>
-                  <option>square</option>
-                  <option>add3</option>
-                  <option>add2</option>
-                  <option>sub2</option>
-                  <option>hello</option>
-               </select>
-               <button type="button" onclick="registerProcedure();">register</button>
-            </p>
+          <div id="call_space">
+              <p>
+                  URI:
+                  <input id="call_uri" type="text" value="io.crossbar.demo.echo">
+                  data:
+                  <input id="call_data" type="text">
+                  <button type="button" onclick="wamp_call();">call</button>
+              </p>
+              <p>
+                Result: <input id="result_box" type="text">
+              </p>
+              <p>
+                  URI:
+                  <input id="reg_uri" type="text" value="io.crossbar.demo.mul2"></input>
+                  function:
+                  <select id="reg_fun">
+                      <option>mul2</option>
+                      <option>square</option>
+                      <option>add3</option>
+                      <option>add2</option>
+                      <option>sub2</option>
+                      <option>hello</option>
+                  </select>
+                  <button type="button" onclick="registerProcedure();">register</button>
+              </p>
+          </div>
+          <div id="chatSpace" align="left">
+             <div class="chat_channel_selector">
+                <a href="#ch1">Channel 1</a>
+             </div>
+             <div class="chat_channel_selector">
+                <a href="#ch2">Channel 2</a>
+             </div>
+             <div class="chat_channel_selector">
+                <a href="#ch3">Channel 3</a>
+             </div>
+             <div class="chat_channel_selector">
+                <a href="#ch4">Channel 4</a>
+             </div>
+             <div class="chat_channel_selector">
+                <a href="#ch5">Channel 5</a>
+             </div>
+             <button id="helpButton" class="webmq_demo_button button">?</button>
 
-            <a href="#ch1">Channel 1</a>
-         </div>
-         <div class="chat_channel_selector">
-            <a href="#ch2">Channel 2</a>
-         </div>
-         <div class="chat_channel_selector">
-            <a href="#ch3">Channel 3</a>
-         </div>
-         <div class="chat_channel_selector">
-            <a href="#ch4">Channel 4</a>
-         </div>
-         <div class="chat_channel_selector">
-            <a href="#ch5">Channel 5</a>
-         </div>
-         <button id="helpButton" class="webmq_demo_button button">?</button>
+             <div class="status_line">
+                Status: <span class="statusline"></span>
+             </div>
+          </div>
 
-         <div class="status_line">
-            Status: <span class="statusline"></span>
-         </div>
       </div>
       <div style="clear: both"></div>
 
@@ -167,10 +166,13 @@
                var res = CallData.split(",");
                console.log("call uri", CallUri, res);
                sess.call(CallUri, res).then( //
-               function (res) {
-                  console.log("Result:", res);
-               }
-            );
+                  function (res) {
+                     console.log("Result:", res);
+                     var resultBox = $("#result_box")
+                     $(resultBox).html('');
+                     $(resultBox).append(res);
+                  }
+               );
          }
          // declared procedures
          var square = function(X) {return X*X;};

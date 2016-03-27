@@ -547,7 +547,7 @@ flatButton:hover
    padding: 1em 3em;
    margin: 2em auto;
 
-   font-size: 20px;
+   font-size: 16px;
    text-align: center;
    color: #fff;
    background-color: #aaa;
@@ -556,7 +556,7 @@ flatButton:hover
    text-decoration: none;
    /*color: inherit;*/
 
-   box-shadow: 0 0 20px 2px rgba(0, 0, 0, 0.3);
+   box-shadow: 0 0 10px 2px rgba(0, 0, 0, 0.3);
 }
 
 .chat_channel_selector > a:focus
@@ -640,9 +640,10 @@ flatButton:hover
 {
 }
 
+
 #messages_box
 {
-   height: 300px;
+   height: 200px;
    width: 250px;
 
    border: 1px solid #ccc;
@@ -651,12 +652,44 @@ flatButton:hover
    overflow: auto;
 }
 
+#call_space
+{
+  float: right;
+   padding-top: 55px;
+   height: 140px;
+   width: 450px;
+
+   border: 1px solid #ccc;
+   padding: 10px;
+   overflow: auto;
+}
+
+#chatSpace
+{
+  //margin-left: 10px;
+  //float: left;
+   //height: 150px;
+   width: 450px;
+
+   //border: 1px solid #ccc;
+   padding: 10px;
+   //overflow: auto;
+}
+
+#result_box
+{
+   padding: 3px;
+   width: 100px;
+   border: 1px solid #ccc;
+   background-color: white;
+}
+
 #messages_box > p
 {
    margin: 0;
 }
 
-#messages_box > .nick_line
+#messages_boxmessages_box > .nick_line
 {
    /*font-variant-caps: all-small-caps;*/
    font-weight: bold;
