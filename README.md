@@ -33,7 +33,7 @@ Install library as package:
   Clone it and take a look on the out of the box features, CLI and HTML clients.
  Install required dependencies and build:
  ```bash
- go build
+go get -t ./...
  ```
  * Start server on port 8000
 ```bash
@@ -56,8 +56,8 @@ Where:
    * PUB topic message
    * CALL uri arguments
    * EXIT (or Ctl+C)
-   
- ## Examples
+
+## Examples
  Let's interact between CLI and HTML clients.
  ###Subscribe both clients to the same topic and talk between them
   From browser client, select desired channel (Ch1), making a subscribe to the topic io.crossbar.demo.ch1,
@@ -70,7 +70,7 @@ Where:
   ```
    Message has been received from web client, make your reply and it will be received from CLI.
    
- ###Register a procedure from the HTML client, and use it from CLI.
+### Register a procedure from the HTML client, and use it from CLI.
  Open HTML client and register io.crossbar.demo.mul2 procedure, that procedure just 
  makes the product of two arguments, so click register button, and then, from a terminal:
  
@@ -84,7 +84,7 @@ Where:
    +------+----------------+
 ```
 
- ### RPC introspection tools:
+### RPC introspection tools:
   Router introspection:
  ```bash
  call wampire.core.router.sessions
