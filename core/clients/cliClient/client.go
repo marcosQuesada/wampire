@@ -19,9 +19,9 @@ type clientMsgHandler func(core.Message) error
 type cliClient struct {
 	*core.Session
 
-	msgHandlers map[core.MsgType]clientMsgHandler
-	reader      *bufio.Reader
-	done        chan struct{}
+	msgHandlers  map[core.MsgType]clientMsgHandler
+	reader       *bufio.Reader
+	done         chan struct{}
 }
 
 func NewCliClient(host string) *cliClient {
@@ -36,16 +36,19 @@ func NewCliClient(host string) *cliClient {
 	peer := core.NewWebsockerPeer(conn, core.CLIENT)
 
 	c := &cliClient{
-		Session: core.NewSession(peer),
-		reader:  bufio.NewReader(os.Stdin),
-		done:    make(chan struct{}),
+		Session:      core.NewSession(peer),
+		reader:       bufio.NewReader(os.Stdin),
+		done:         make(chan struct{}),
 	}
 
 	// Declare local handlers
 	c.msgHandlers = map[core.MsgType]clientMsgHandler{
 		core.WELCOME: c.welcome,
+		core.PUBLISHED: c.published,
+		core.SUBSCRIBED: c.subscribed,
 		core.RESULT:  c.result,
 		core.EVENT:   c.event,
+		core.ERROR:   c.error,
 	}
 
 	realm := core.URI("fooRealm")
@@ -99,7 +102,7 @@ func (c *cliClient) processCli() {
 				continue
 			}
 			id := core.NewId()
-			subs := &core.Subscribe{Request: id, Topic: core.Topic(args[1])}
+			subs := &core.Subscribe{Request: id, Options: map[string]interface{}{}, Topic: core.Topic(args[1])}
 			c.Send(subs)
 		case "CALL":
 			if len(args) == 1 {
@@ -230,6 +233,24 @@ func (p *cliClient) event(msg core.Message) error {
 		log.Printf("EVENT Topic: %s Message: %s \n", r.Details["topic"], message)
 	}
 
+	return nil
+}
+
+func (p *cliClient) published(msg core.Message) error {
+	r := msg.(*core.Published)
+	log.Printf("published Details: %s \n", r.Request)
+	return nil
+}
+
+func (p *cliClient) subscribed(msg core.Message) error {
+	r := msg.(*core.Subscribed)
+	log.Printf("Subscribed Details: %s \n", r.Subscription)
+	return nil
+}
+
+func (p *cliClient) error(msg core.Message) error {
+	r := msg.(*core.Error)
+	log.Printf("Error URI: %s \n", r.Error)
 	return nil
 }
 
