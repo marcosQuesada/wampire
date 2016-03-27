@@ -1,6 +1,8 @@
 package core
 
-import "log"
+import (
+	"log"
+)
 
 type inSession struct {
 	session *Session
@@ -38,10 +40,21 @@ func (i *inSession) list(msg Message) (Message, error) {
 	}, nil
 }
 
+func (i *inSession) echo(msg Message) (Message, error) {
+	inv := msg.(*Invocation)
+	res := append(inv.Arguments, "oki")
+
+	return &Yield{
+		Request:   inv.Request,
+		Arguments: res,
+	}, nil
+}
+
 func (i *inSession) Handlers() map[URI]Handler {
 	return map[URI]Handler{
 		"wampire.core.help": i.help,
 		"wampire.core.list": i.list,
+		"wampire.core.echo": i.echo,
 	}
 }
 
