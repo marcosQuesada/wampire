@@ -240,6 +240,9 @@ func (p *cliClient) event(msg core.Message) error {
 		if detailsMap, ok := r.Arguments[0].(map[string]interface{}); ok {
 			message = detailsMap["message"].(string)
 		}
+		if cid, ok := r.Details["session_id"]; ok {
+			message = fmt.Sprintf("%s id: %s",message, cid)
+		}
 		log.Printf("EVENT Topic: %s Message: %s \n", r.Details["topic"], message)
 	}
 
@@ -248,13 +251,13 @@ func (p *cliClient) event(msg core.Message) error {
 
 func (p *cliClient) published(msg core.Message) error {
 	r := msg.(*core.Published)
-	log.Printf("published Details: %s \n", r.Request)
+	log.Printf("published Details: %d \n", r.Request)
 	return nil
 }
 
 func (p *cliClient) subscribed(msg core.Message) error {
 	r := msg.(*core.Subscribed)
-	log.Printf("Subscribed Details: %s \n", r.Subscription)
+	log.Printf("Subscribed Details: %d \n", r.Subscription)
 	return nil
 }
 

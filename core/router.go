@@ -11,29 +11,34 @@ type Router struct {
 	sessions map[PeerID]*Session
 	Broker
 	Dealer
-	exit  chan struct{}
-	mutex *sync.RWMutex
-	auth  Authenticator
+	exit            chan struct{}
+	mutex           *sync.RWMutex
+	auth            Authenticator
+	internalSession *inSession
 }
 
 type Authenticator func(Message) bool
 
 func NewRouter() *Router {
-
+	internalSession := newInSession()
 	r := &Router{
-		sessions: make(map[PeerID]*Session),
-		Broker:   NewBroker(),
-		Dealer:   NewDealer(),
-		exit:     make(chan struct{}),
-		mutex:    &sync.RWMutex{},
+		sessions:        make(map[PeerID]*Session),
+		Broker:          NewBroker(),
+		Dealer:          NewDealer(),
+		exit:            make(chan struct{}),
+		mutex:           &sync.RWMutex{},
+		internalSession: internalSession,
 	}
 
 	// Register in session procedures
-	internalSession := newInSession()
+
 	r.Dealer.RegisterSessionHandlers(internalSession.Handlers(), internalSession)
 	r.Dealer.RegisterSessionHandlers(r.Handlers(), internalSession)
 	r.Dealer.RegisterSessionHandlers(r.Broker.Handlers(), internalSession)
 	r.Dealer.RegisterSessionHandlers(r.Dealer.Handlers(), internalSession)
+
+	// Subscribe on Session Meta Event Topics
+	//r.Broker.SubscribeSessionMetaEvents(Topic("wampire.session.meta.events"), internalSession)
 
 	go r.handleSession(internalSession.session)
 
@@ -101,75 +106,16 @@ func (r *Router) authenticate(msg Message) (Message, bool, error) {
 		}, false, nil
 	}
 
-	details := map[string]interface{}{
-		"roles": map[string]interface{}{
-			"publisher": map[string]interface{}{
-				"features": map[string]interface{}{
-					"publisher_identification":      true,
-					"subscriber_blackwhite_listing": true,
-					"publisher_exclusion":           true,
-				},
-			},
-			"subscriber": map[string]interface{}{
-				"features": map[string]interface{}{
-					"publisher_identification": true,
-					//"publication_trustlevels": true,
-					"pattern_based_subscription": true,
-					"subscription_revocation":    true,
-					//"event_history": true,
-				},
-			},
-			"broker": map[string]interface{}{
-				"features": map[string]interface{}{
-					"publisher_identification": true,
-					/*					"pattern_based_subscription": true,
-										"subscription_meta_api": true,
-										"subscription_revocation": true,
-										"publisher_exclusion": true,
-										"subscriber_blackwhite_listing": true,*/
-				},
-			},
-			"dealer": map[string]interface{}{
-				"features": map[string]interface{}{
-					"caller_identification": true,
-					/*					"progressive_call_results": true,
-										"pattern_based_registration": true,
-										"registration_revocation": true,
-										"shared_registration": true,
-										"registration_meta_api": true,*/
-				},
-			},
-			"caller": map[string]interface{}{
-				"features": map[string]interface{}{
-					"caller_identification": true,
-					//"call_timeout": true,
-					//"call_canceling": true,
-					"progressive_call_results": true,
-				},
-			},
-			"callee": map[string]interface{}{
-				"features": map[string]interface{}{
-					"caller_identification": true,
-					//"call_trustlevels": true,
-					"pattern_based_registration": true,
-					"shared_registration":        true,
-					//"call_timeout": true,
-					//"call_canceling": true,
-					"progressive_call_results": true,
-					"registration_revocation":  true,
-				},
-			},
-		},
-	}
-	//answer welcome
 	return &Welcome{
 		Id:      NewId(),
-		Details: details,
+		Details: r.defaultDetails(),
 	}, true, nil
 }
 
 func (r *Router) handleSession(s *Session) {
 	defer log.Println("Exit session handler from peer ", s.ID())
+	// Fire on_leave Session Meta Event
+	defer r.fireSessionMetaEvent(Topic("wampire.session.meta.events"), s.ID(), "wampire.session.on_leave")
 	defer s.Terminate()
 	defer r.unRegister(s)
 	defer func() {
@@ -179,6 +125,11 @@ func (r *Router) handleSession(s *Session) {
 			r.Broker.UnSubscribe(u, s)
 		}
 	}()
+
+	//Fire on_join Session Meta Event
+	if s.ID() != PeerID("internal") {
+		r.fireSessionMetaEvent(Topic("wampire.session.meta.events"), s.ID(), "wampire.session.on_join")
+	}
 
 	for {
 		select {
@@ -256,6 +207,21 @@ func (r *Router) handleSession(s *Session) {
 			return
 		}
 	}
+}
+
+func (r *Router) fireSessionMetaEvent(topic Topic, id PeerID, content string) {
+	r.Broker.Publish(
+		&Publish{
+			Request: NewId(),
+			Topic:   topic,
+			Options: map[string]interface{}{
+				"session_id":  id,
+				"acknowledge": true,
+			},
+			Arguments: []interface{}{
+				map[string]interface{}{"message": content},
+			},
+		}, r.internalSession.session)
 }
 
 func (r *Router) register(p *Session) error {
@@ -379,4 +345,67 @@ func (r *Router) getSession(msg Message) (Message, error) {
 		Request:     inv.Request,
 		ArgumentsKw: kw,
 	}, nil
+}
+
+func (r *Router) defaultDetails() map[string]interface{} {
+	return map[string]interface{}{
+		"roles": map[string]interface{}{
+			"publisher": map[string]interface{}{
+				"features": map[string]interface{}{
+					"publisher_identification":      true,
+					"subscriber_blackwhite_listing": true,
+					"publisher_exclusion":           true,
+				},
+			},
+			"subscriber": map[string]interface{}{
+				"features": map[string]interface{}{
+					"publisher_identification": true,
+					//"publication_trustlevels": true,
+					"pattern_based_subscription": true,
+					"subscription_revocation":    true,
+					//"event_history": true,
+				},
+			},
+			"broker": map[string]interface{}{
+				"features": map[string]interface{}{
+					"publisher_identification": true,
+					/*					"pattern_based_subscription": true,
+										"subscription_meta_api": true,
+										"subscription_revocation": true,
+										"publisher_exclusion": true,
+										"subscriber_blackwhite_listing": true,*/
+				},
+			},
+			"dealer": map[string]interface{}{
+				"features": map[string]interface{}{
+					"caller_identification": true,
+					/*					"progressive_call_results": true,
+										"pattern_based_registration": true,
+										"registration_revocation": true,
+										"shared_registration": true,
+										"registration_meta_api": true,*/
+				},
+			},
+			"caller": map[string]interface{}{
+				"features": map[string]interface{}{
+					"caller_identification": true,
+					//"call_timeout": true,
+					//"call_canceling": true,
+					"progressive_call_results": true,
+				},
+			},
+			"callee": map[string]interface{}{
+				"features": map[string]interface{}{
+					"caller_identification": true,
+					//"call_trustlevels": true,
+					"pattern_based_registration": true,
+					"shared_registration":        true,
+					//"call_timeout": true,
+					//"call_canceling": true,
+					"progressive_call_results": true,
+					"registration_revocation":  true,
+				},
+			},
+		},
+	}
 }

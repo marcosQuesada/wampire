@@ -11,6 +11,7 @@ type Broker interface {
 	UnSubscribe(Message, *Session) Message
 	Publish(Message, *Session) Message
 	Handlers() map[URI]Handler
+	SubscribeSessionMetaEvents(Topic, *inSession)
 }
 
 type defaultBroker struct {
@@ -29,11 +30,23 @@ func NewBroker() *defaultBroker {
 	}
 }
 
+func (b *defaultBroker) SubscribeSessionMetaEvents(topic Topic, s *inSession) {
+	sbs := &Subscribe{Request: NewId(), Topic: topic, Options: map[string]interface{}{"topic": topic}}
+	msg := b.Subscribe(sbs, s.session)
+	if msg.MsgType() != SUBSCRIBED {
+		uri := fmt.Sprintf("InSession Error subscribing meta events topic: ", topic)
+		log.Println(uri)
+
+		return
+	}
+}
+
 func (b *defaultBroker) Subscribe(msg Message, s *Session) Message {
 	b.mutex.Lock()
 	defer b.mutex.Unlock()
 
 	subscribe, ok := msg.(*Subscribe)
+	log.Println("subscribe invoked ", subscribe.Topic)
 	if !ok {
 		log.Fatal("Unexpected type on subscribe ", msg.MsgType())
 		panic("Unexpected type on subscribe")
@@ -141,7 +154,6 @@ func (b *defaultBroker) Publish(msg Message, p *Session) Message {
 			Error:   URI(uri),
 		}
 	}
-
 	//iterate on topic subscribers
 	for subscriptionId, _ := range subscribers {
 		b.mutex.RLock()
@@ -178,9 +190,9 @@ func (b *defaultBroker) Publish(msg Message, p *Session) Message {
 
 func (b *defaultBroker) Handlers() map[URI]Handler {
 	return map[URI]Handler{
-		"wampire.subscription.list_subscribers":        b.listSubscribers,
-		"wampire.subscription.list_topics":             b.listTopics,
-		"wampire.subscription.count_subscribers":       b.countSubscribers,
+		"wampire.subscription.list_subscribers":       b.listSubscribers,
+		"wampire.subscription.list_topics":            b.listTopics,
+		"wampire.subscription.count_subscribers":      b.countSubscribers,
 		"wampire.subscription.list_topic_subscribers": b.listTopicSubscriptions,
 	}
 }
