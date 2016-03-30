@@ -11,7 +11,6 @@ type Broker interface {
 	UnSubscribe(Message, *Session) Message
 	Publish(Message, *Session) Message
 	Handlers() map[URI]Handler
-	SubscribeSessionMetaEvents(Topic, *inSession)
 }
 
 type defaultBroker struct {
@@ -22,23 +21,20 @@ type defaultBroker struct {
 }
 
 func NewBroker() *defaultBroker {
-	return &defaultBroker{
+	b := &defaultBroker{
 		topics:        make(map[Topic]map[ID]bool),
 		subscriptions: make(map[ID]*Session),
 		topicPeers:    make(map[Topic]map[PeerID]ID),
 		mutex:         &sync.RWMutex{},
 	}
-}
 
-func (b *defaultBroker) SubscribeSessionMetaEvents(topic Topic, s *inSession) {
-	sbs := &Subscribe{Request: NewId(), Topic: topic, Options: map[string]interface{}{"topic": topic}}
-	msg := b.Subscribe(sbs, s.session)
-	if msg.MsgType() != SUBSCRIBED {
-		uri := fmt.Sprintf("InSession Error subscribing meta events topic: ", topic)
-		log.Println(uri)
+	// intialize session meta event topic
+	eventsTopic := Topic("wampire.session.meta.events")
+	b.topics[eventsTopic] = map[ID]bool{}
+	b.topicPeers[eventsTopic] = map[PeerID]ID{}
+	log.Println("Session meta events topic created: wampire.session.meta.events")
 
-		return
-	}
+	return b
 }
 
 func (b *defaultBroker) Subscribe(msg Message, s *Session) Message {
@@ -57,6 +53,7 @@ func (b *defaultBroker) Subscribe(msg Message, s *Session) Message {
 		//create topic!
 		b.topics[subscribe.Topic] = make(map[ID]bool)
 		b.topicPeers[subscribe.Topic] = make(map[PeerID]ID)
+
 	}
 
 	//check if subscriptor is already register to topic

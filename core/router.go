@@ -31,15 +31,12 @@ func NewRouter() *Router {
 	}
 
 	// Register in session procedures
-
 	r.Dealer.RegisterSessionHandlers(internalSession.Handlers(), internalSession)
 	r.Dealer.RegisterSessionHandlers(r.Handlers(), internalSession)
 	r.Dealer.RegisterSessionHandlers(r.Broker.Handlers(), internalSession)
 	r.Dealer.RegisterSessionHandlers(r.Dealer.Handlers(), internalSession)
 
-	// Subscribe on Session Meta Event Topics
-	//r.Broker.SubscribeSessionMetaEvents(Topic("wampire.session.meta.events"), internalSession)
-
+	//Handle internal Session
 	go r.handleSession(internalSession.session)
 
 	return r
@@ -63,7 +60,6 @@ func (r *Router) Accept(p Peer) error {
 			log.Println("Error authenticating")
 		}
 		p.Send(response)
-
 		if !auth {
 			log.Println("Authorization denegated, abort")
 
@@ -77,8 +73,9 @@ func (r *Router) Accept(p Peer) error {
 
 		return nil
 	case <-timeout.C:
-		log.Println("Timeout error waiting Hello Message")
-		return fmt.Errorf("Timeout error waiting Hello Message")
+		errMsg := "Timeout error waiting Hello Message"
+		log.Println(errMsg)
+		return fmt.Errorf(errMsg)
 	}
 }
 
@@ -100,6 +97,7 @@ func (r *Router) authenticate(msg Message) (Message, bool, error) {
 		auth = r.auth(msg)
 	}
 	if !auth {
+		// @TODO: needs real response
 		return &Abort{
 			Details: map[string]interface{}{"message": "The realm does not exist."},
 			Reason:  URI("wamp.error.no_such_realm"),
@@ -113,69 +111,53 @@ func (r *Router) authenticate(msg Message) (Message, bool, error) {
 }
 
 func (r *Router) handleSession(s *Session) {
-	defer log.Println("Exit session handler from peer ", s.ID())
-	// Fire on_leave Session Meta Event
-	defer r.fireSessionMetaEvent(Topic("wampire.session.meta.events"), s.ID(), "wampire.session.on_leave")
-	defer s.Terminate()
-	defer r.unRegister(s)
 	defer func() {
+		log.Println("Exit session handler from peer ", s.ID())
+		// remove session subscriptions
 		for sid, topic := range s.subscriptions {
 			log.Printf("Unsubscribe sid %d on topic %s \n", sid, topic)
 			u := &Unsubscribe{Request: NewId(), Subscription: sid}
 			r.Broker.UnSubscribe(u, s)
 		}
+		// Fire on_leave Session Meta Event
+		r.fireSessionMetaEvent(Topic("wampire.session.meta.events"), s.ID(), "wampire.session.on_leave")
+		//unregister session from router
+		r.unRegister(s)
+		//exit session
+		s.Terminate()
 	}()
 
 	//Fire on_join Session Meta Event
-	if s.ID() != PeerID("internal") {
-		r.fireSessionMetaEvent(Topic("wampire.session.meta.events"), s.ID(), "wampire.session.on_join")
-	}
+	r.fireSessionMetaEvent(Topic("wampire.session.meta.events"), s.ID(), "wampire.session.on_join")
 
 	for {
 		select {
 		case msg, open := <-s.Receive():
 			if !open {
-				log.Println("Closing handled session from closed receive chan")
+				log.Println("Closing handleSession from closed receive chan")
 				return
 			}
 
 			var response Message
 			switch msg.(type) {
 			case *Goodbye:
-				log.Println("Received Goodbye")
-				// exit handler
+				log.Println("Received Goodbye, exit handle session")
+				return
 			case *Publish:
 				log.Println("Received Publish on topic ", msg.(*Publish).Topic)
 				response = r.Broker.Publish(msg, s)
 			case *Subscribe:
 				log.Println("Received Subscribe", msg.(*Subscribe).Topic)
 				response = r.Broker.Subscribe(msg, s)
-
-				//store subscription on session
-				//unsubscribe on session close
-				if sbd, ok := response.(*Subscribed); ok {
-					r.mutex.Lock()
-					s.subscriptions[sbd.Subscription] = msg.(*Subscribe).Topic
-					r.mutex.Unlock()
-				}
 			case *Unsubscribe:
 				log.Println("Received Unubscribe")
 				response = r.Broker.UnSubscribe(msg, s)
-
-				// remove subscription from session
-				if _, ok := response.(*Unsubscribed); ok {
-					usbd := msg.(*Unsubscribe)
-					r.mutex.Lock()
-					delete(s.subscriptions, usbd.Subscription)
-					r.mutex.Unlock()
-				}
 			case *Call:
 				log.Println("Received Call ", msg.(*Call).Procedure)
 				response = r.Dealer.Call(msg, s)
 			case *Cancel:
 				log.Println("Received Cancel, forward this to requester on dealer ")
 				r.Dealer.Cancel(msg, s)
-
 			case *Yield:
 				log.Println("Received Yield, forward this to dealer ", msg.(*Yield))
 				r.Dealer.Yield(msg, s)
@@ -210,6 +192,10 @@ func (r *Router) handleSession(s *Session) {
 }
 
 func (r *Router) fireSessionMetaEvent(topic Topic, id PeerID, content string) {
+	//Fire on_join Session Meta Event only if is not the internal peer
+	if id == PeerID("internal") {
+		return
+	}
 	r.Broker.Publish(
 		&Publish{
 			Request: NewId(),
