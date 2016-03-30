@@ -136,7 +136,8 @@ func (c *cliClient) processCli() {
 
 func (p *cliClient) receiveLoop() {
 	defer log.Println("Exit Run loop")
-
+	defer p.exit()
+	
 	for {
 		select {
 		case msg, open := <-p.Receive():
@@ -261,6 +262,12 @@ func (p *cliClient) subscribed(msg core.Message) error {
 	return nil
 }
 
+func (c *cliClient) exit() {
+	close(c.done)
+	c.Terminate()
+	os.Exit(0)
+}
+
 func (p *cliClient) error(msg core.Message) error {
 	r := msg.(*core.Error)
 	log.Printf("Error URI: %s \n", r.Error)
@@ -292,9 +299,7 @@ func main() {
 	go func() {
 		<-c
 		//@TODO....
-		close(client.done)
-		client.Terminate()
-		os.Exit(0)
+		client.exit()
 	}()
 
 	client.processCli()
