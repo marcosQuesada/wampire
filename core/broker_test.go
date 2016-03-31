@@ -5,7 +5,10 @@ import (
 )
 
 func TestBrokerPublish(t *testing.T) {
-	b := NewBroker()
+	m := &SessionMetaEventHandler{
+		metaEvents: make(chan *MetaEvent, 10),
+	}
+	b := NewBroker(m)
 	fpp := NewFakePeer(PeerID("123"))
 	s := NewSession(fpp)
 
@@ -31,7 +34,10 @@ func TestBrokerPublish(t *testing.T) {
 }
 
 func TestBrokerSubscribe(t *testing.T) {
-	b := NewBroker()
+	m := &SessionMetaEventHandler{
+		metaEvents: make(chan *MetaEvent, 10),
+	}
+	b := NewBroker(m)
 	s := NewSession(NewFakePeer(PeerID("123")))
 
 	subs := &Subscribe{Request:ID(123), Topic: Topic("foo")}
@@ -75,7 +81,10 @@ func TestBrokerSubscribe(t *testing.T) {
 }
 
 func TestBrokerUnSubscribe(t *testing.T) {
-	b := NewBroker()
+	m := &SessionMetaEventHandler{
+		metaEvents: make(chan *MetaEvent, 10),
+	}
+	b := NewBroker(m)
 	s := NewSession(NewFakePeer(PeerID("123")))
 
 	subs := &Subscribe{Request:ID(123), Topic: Topic("foo")}

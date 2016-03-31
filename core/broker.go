@@ -18,14 +18,16 @@ type defaultBroker struct {
 	subscriptions map[ID]*Session         //a peer may have many subscriptions
 	topicPeers    map[Topic]map[PeerID]ID //maps peers by topic on subscription
 	mutex         *sync.RWMutex
+	metaEvents    *SessionMetaEventHandler
 }
 
-func NewBroker() *defaultBroker {
+func NewBroker(m *SessionMetaEventHandler) *defaultBroker {
 	b := &defaultBroker{
 		topics:        make(map[Topic]map[ID]bool),
 		subscriptions: make(map[ID]*Session),
 		topicPeers:    make(map[Topic]map[PeerID]ID),
 		mutex:         &sync.RWMutex{},
+		metaEvents:    m,
 	}
 
 	// intialize session meta event topic
@@ -54,6 +56,11 @@ func (b *defaultBroker) Subscribe(msg Message, s *Session) Message {
 		b.topics[subscribe.Topic] = make(map[ID]bool)
 		b.topicPeers[subscribe.Topic] = make(map[PeerID]ID)
 
+		b.metaEvents.fireMetaEvents(
+			s.ID(),
+			URI("wamp.subscription.on_create"),
+			map[string]interface{}{},
+		)
 	}
 
 	//check if subscriptor is already register to topic
@@ -71,6 +78,11 @@ func (b *defaultBroker) Subscribe(msg Message, s *Session) Message {
 
 	// Add subscription to session
 	s.addSubscription(subscriptionId, subscribe.Topic)
+	b.metaEvents.fireMetaEvents(
+		s.ID(),
+		URI("wamp.subscription.on_subscribe"),
+		map[string]interface{}{},
+	)
 
 	return &Subscribed{
 		Request:      subscribe.Request,
@@ -120,13 +132,23 @@ func (b *defaultBroker) UnSubscribe(msg Message, s *Session) Message {
 	delete(b.topics[topic], unsubscribe.Subscription)
 
 	//if void topic remove it
-	if len(b.topics[topic]) == 0 {
+	if len(b.topics[topic]) == 0 && topic != Topic("wampire.session.meta.events") {
 		delete(b.topics, topic)
 	}
 	//if void topic remove it
-	if len(b.topicPeers[topic]) == 0 {
+	if len(b.topicPeers[topic]) == 0 && topic != Topic("wampire.session.meta.events") {
 		delete(b.topicPeers, topic)
+		b.metaEvents.fireMetaEvents(
+			session.ID(),
+			URI("wamp.subscription.on_delete"),
+			map[string]interface{}{},
+		)
 	}
+	b.metaEvents.fireMetaEvents(
+		session.ID(),
+		URI("wamp.subscription.on_unsubscribe"),
+		map[string]interface{}{},
+	)
 
 	return &Unsubscribed{
 		Request: unsubscribe.Request,

@@ -15,20 +15,25 @@ type Router struct {
 	mutex           *sync.RWMutex
 	auth            Authenticator
 	internalSession *inSession
+	metaEvents      *SessionMetaEventHandler
 }
 
 type Authenticator func(Message) bool
 
 func NewRouter() *Router {
 	internalSession := newInSession()
+	m := NewSessionMetaEventsHandler()
 	r := &Router{
 		sessions:        make(map[PeerID]*Session),
-		Broker:          NewBroker(),
-		Dealer:          NewDealer(),
+		Broker:          NewBroker(m),
+		Dealer:          NewDealer(m),
 		exit:            make(chan struct{}),
 		mutex:           &sync.RWMutex{},
 		internalSession: internalSession,
+		metaEvents:      m,
 	}
+
+	go m.consumeMetaEvents(r)
 
 	// Register in session procedures
 	r.Dealer.RegisterSessionHandlers(internalSession.Handlers(), internalSession)
@@ -85,6 +90,7 @@ func (r *Router) Terminate() {
 	//wait until all handleSession has finished
 	<-r.waitUntilVoid()
 	log.Println("Router terminated!")
+	close(r.metaEvents.done)
 }
 
 func (r *Router) SetAuthenticator(a Authenticator) {
@@ -120,7 +126,7 @@ func (r *Router) handleSession(s *Session) {
 			r.Broker.UnSubscribe(u, s)
 		}
 		// Fire on_leave Session Meta Event
-		r.fireSessionMetaEvent(Topic("wampire.session.meta.events"), s.ID(), "wampire.session.on_leave")
+		r.metaEvents.fireMetaEvents(s.ID(), URI("wampire.session.on_leave"), map[string]interface{}{})
 		//unregister session from router
 		r.unRegister(s)
 		//exit session
@@ -128,7 +134,7 @@ func (r *Router) handleSession(s *Session) {
 	}()
 
 	//Fire on_join Session Meta Event
-	r.fireSessionMetaEvent(Topic("wampire.session.meta.events"), s.ID(), "wampire.session.on_join")
+	r.metaEvents.fireMetaEvents(s.ID(), URI("wampire.session.on_join"), map[string]interface{}{})
 
 	for {
 		select {
@@ -189,25 +195,6 @@ func (r *Router) handleSession(s *Session) {
 			return
 		}
 	}
-}
-
-func (r *Router) fireSessionMetaEvent(topic Topic, id PeerID, content string) {
-	//Fire on_join Session Meta Event only if is not the internal peer
-	if id == PeerID("internal") {
-		return
-	}
-	r.Broker.Publish(
-		&Publish{
-			Request: NewId(),
-			Topic:   topic,
-			Options: map[string]interface{}{
-				"session_id":  id,
-				"acknowledge": true,
-			},
-			Arguments: []interface{}{
-				map[string]interface{}{"message": content},
-			},
-		}, r.internalSession.session)
 }
 
 func (r *Router) register(p *Session) error {

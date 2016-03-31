@@ -136,8 +136,7 @@ func (c *cliClient) processCli() {
 
 func (p *cliClient) receiveLoop() {
 	defer log.Println("Exit Run loop")
-	defer p.exit()
-	
+
 	for {
 		select {
 		case msg, open := <-p.Receive():

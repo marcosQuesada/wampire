@@ -20,16 +20,18 @@ type defaultDealer struct {
 	sessionHandlers map[URI]ID
 	registrations   map[ID]*Session // handler registrations from session callees
 	reqListeners    *RequestListener
+	mutex           *sync.RWMutex
+	metaEvents      *SessionMetaEventHandler
 	//currentTasks: make(map[ID]Message //@TODO: Register active Calls to enable Cancel
-	mutex *sync.RWMutex
 }
 
-func NewDealer() *defaultDealer {
+func NewDealer(m *SessionMetaEventHandler) *defaultDealer {
 	d := &defaultDealer{
 		sessionHandlers: make(map[URI]ID),
 		registrations:   make(map[ID]*Session),
 		mutex:           &sync.RWMutex{},
 		reqListeners:    NewRequestListener(),
+		metaEvents:      m,
 	}
 
 	return d
@@ -52,6 +54,11 @@ func (d *defaultDealer) Register(msg Message, s *Session) Message {
 	d.registrations[id] = s
 	d.sessionHandlers[register.Procedure] = id
 	s.addRegistration(id, register.Procedure)
+	d.metaEvents.fireMetaEvents(
+		s.ID(),
+		URI("wamp.subscription.on_register"),
+		map[string]interface{}{},
+	)
 
 	return &Registered{
 		Request:      register.Request,
@@ -99,6 +106,12 @@ func (d *defaultDealer) Unregister(msg Message, s *Session) Message {
 	delete(d.registrations, unregister.Registration)
 	//unregister uri from session
 	s.unregister(uri)
+
+	d.metaEvents.fireMetaEvents(
+		s.ID(),
+		URI("wamp.subscription.on_unregister"),
+		map[string]interface{}{},
+	)
 
 	return &Unregistered{
 		Request: unregister.Request,

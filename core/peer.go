@@ -113,6 +113,7 @@ func (p *webSocketPeer) writeLoop() {
 			if err := p.write(websocket.TextMessage, data); err != nil {
 				return
 			}
+			
 		//@TODO: Handle sync on one chan
 		case <-p.closedConn:
 			log.Println("writeLoop closedConn chan close")

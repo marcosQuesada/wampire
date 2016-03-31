@@ -7,7 +7,10 @@ import (
 )
 
 func TestDealerCallOnInternalPeer(t *testing.T) {
-	d := NewDealer()
+	m := &SessionMetaEventHandler{
+		metaEvents: make(chan *MetaEvent, 10),
+	}
+	d := NewDealer(m)
 	fp := NewFakePeer(PeerID("123"))
 	s := NewSession(fp)
 	go sessionLoop(s)
