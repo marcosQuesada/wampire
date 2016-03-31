@@ -12,7 +12,7 @@ WAMPire
 - [x] HTML WAMP client
 - [x] Routed RPC
 - [x] Session Meta Procedures
-- [ ] Session Meta Events
+- [X] Session Meta Events
 - [ ] Challenge Response Authentication
 - [ ] WAMP advanced profile 
 - [ ] WAMP distributed architecture 

@@ -10,9 +10,12 @@ WAMPire
 - [x] WAMP basic profile router
 - [x] CLI WAMP client
 - [x] HTML WAMP client
+- [x] Routed RPC
+- [x] Session Meta Procedures
+- [X] Session Meta Events
 - [ ] Challenge Response Authentication
 - [ ] WAMP advanced profile 
-- [ ] WAMP distributed architecture 
+- [ ] WAMP distributed architecture  
 
 ## Features 
  * WAMP basic profile
