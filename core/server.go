@@ -64,7 +64,7 @@ func (s *Server) Run() {
 
 func (s *Server) Terminate() {
 	s.router.Terminate()
-	time.Sleep(time.Second * 1)
+	time.Sleep(time.Millisecond * 200)
 	// Quick and dirty way to stop http.Serve!
 	os.Exit(0)
 }

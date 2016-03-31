@@ -2,6 +2,7 @@ package core
 
 import (
 	"log"
+	"sync"
 )
 
 type MetaEvent struct {
@@ -14,12 +15,14 @@ type MetaEvent struct {
 type SessionMetaEventHandler struct {
 	metaEvents chan *MetaEvent
 	done       chan struct{}
+	mutex      *sync.Mutex
 }
 
 func NewSessionMetaEventsHandler() *SessionMetaEventHandler {
 	return &SessionMetaEventHandler{
 		metaEvents: make(chan *MetaEvent),
 		done:       make(chan struct{}),
+		mutex:      &sync.Mutex{},
 	}
 }
 

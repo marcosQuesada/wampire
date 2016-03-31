@@ -156,14 +156,15 @@ func (b *defaultBroker) UnSubscribe(msg Message, s *Session) Message {
 }
 
 func (b *defaultBroker) Publish(msg Message, p *Session) Message {
+	b.mutex.Lock()
+	defer b.mutex.Unlock()
+
 	publish, ok := msg.(*Publish)
 	if !ok {
 		log.Fatal("Unexpected type on publish ", msg.MsgType())
 	}
 
-	b.mutex.RLock()
 	subscribers, ok := b.topics[publish.Topic]
-	b.mutex.RUnlock()
 	if !ok {
 		uri := "Topic not found"
 		log.Println(uri, publish)
@@ -175,10 +176,8 @@ func (b *defaultBroker) Publish(msg Message, p *Session) Message {
 	}
 	//iterate on topic subscribers
 	for subscriptionId, _ := range subscribers {
-		b.mutex.RLock()
 		//find peer from subscriber
 		peer, ok := b.subscriptions[subscriptionId]
-		b.mutex.RUnlock()
 		if !ok {
 			log.Println("Peer not found")
 			continue

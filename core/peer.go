@@ -110,16 +110,16 @@ func (p *webSocketPeer) writeLoop(mode string) {
 			}
 		case <-ticker.C:
 			if mode == SERVER {
-				log.Println("Sending Ping")
 				if err := p.write(websocket.PingMessage, []byte{}); err != nil {
 					log.Println("Error writting Ping message", err)
 					return
 				}
 			}
-		//@TODO: Handle sync on one chan
+		//exit from readLoop Down
 		case <-p.closedConn:
 			log.Println("writeLoop closedConn chan close")
 			return
+		// exit from terminate
 		case <-p.exit:
 			log.Println("writeLoop exit chan close")
 			return
