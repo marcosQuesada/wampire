@@ -61,13 +61,8 @@ func NewWebsockerPeer(conn *websocket.Conn, mode string) *webSocketPeer {
 	})
 
 	p.wg.Add(2)
-	go p.writeLoop()
+	go p.writeLoop(mode)
 	go p.readLoop()
-	if mode == SERVER {
-
-		p.wg.Add(1)
-		go p.pingLoop()
-	}
 
 	return p
 }
@@ -94,10 +89,10 @@ func (p *webSocketPeer) Terminate() {
 	log.Println("webSocketPeer EXITED", string(p.id))
 }
 
-func (p *webSocketPeer) writeLoop() {
-	defer func() {
-		p.wg.Done()
-	}()
+func (p *webSocketPeer) writeLoop(mode string) {
+	ticker := time.NewTicker(pingPeriod)
+	defer ticker.Stop()
+	defer p.wg.Done()
 
 	for {
 		select {
@@ -113,30 +108,18 @@ func (p *webSocketPeer) writeLoop() {
 			if err := p.write(websocket.TextMessage, data); err != nil {
 				return
 			}
-			
+		case <-ticker.C:
+			if mode == SERVER {
+				log.Println("Sending Ping")
+				if err := p.write(websocket.PingMessage, []byte{}); err != nil {
+					log.Println("Error writting Ping message", err)
+					return
+				}
+			}
 		//@TODO: Handle sync on one chan
 		case <-p.closedConn:
 			log.Println("writeLoop closedConn chan close")
 			return
-		case <-p.exit:
-			log.Println("writeLoop exit chan close")
-			return
-		}
-	}
-}
-
-func (p *webSocketPeer) pingLoop() {
-	ticker := time.NewTicker(pingPeriod)
-	defer ticker.Stop()
-	defer p.wg.Done()
-
-	for {
-		select {
-		case <-ticker.C:
-			if err := p.write(websocket.PingMessage, []byte{}); err != nil {
-				log.Println("Error writting Ping message", err)
-				return
-			}
 		case <-p.exit:
 			log.Println("writeLoop exit chan close")
 			return
