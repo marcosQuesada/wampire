@@ -52,12 +52,12 @@ func TestBrokerSubscribe(t *testing.T) {
 		t.Error("Unexpected response ID")
 	}
 
-	if len(b.topicPeers) != 1 {
+	if len(b.topicPeers) != 2 {
 		t.Error("Unexpected topicPeers size")
 	}
 
-	if len(b.topicPeers) != 1 {
-		t.Error("Unexpected topicPeers size")
+	if len(b.topicPeers[Topic("wampire.session.meta.events")]) != 0 {
+		t.Error("Unexpected topicPeers on peers size")
 	}
 
 	if len(b.topicPeers[Topic("foo")]) != 1 {
@@ -105,7 +105,12 @@ func TestBrokerUnSubscribe(t *testing.T) {
 		t.Error("Unexpected response ID")
 	}
 
-	if len(b.topicPeers) != 0 {
+	if len(b.topicPeers[Topic("wampire.session.meta.events")]) != 0 {
+		t.Error("Unexpected topicPeers on peers size")
+	}
+
+	// topic wampire.session.meta.events still exists
+	if len(b.topicPeers) != 1 {
 		t.Error("Unexpected topicPeers size")
 	}
 
