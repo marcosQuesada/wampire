@@ -28,14 +28,13 @@ func NewSessionMetaEventsHandler() *SessionMetaEventHandler {
 
 func (s *SessionMetaEventHandler) fireMetaEvents(id PeerID, message URI, details map[string]interface{}) {
 	//Fire on_join Session Meta Event only if is not the internal peer
-	topic := Topic("wampire.session.meta.events")
 	if id == PeerID("internal") {
 		return
 	}
 	// fired in a non blocking way
 	go func() {
 		s.metaEvents <- &MetaEvent{
-			topic:   topic,
+			topic:   Topic("wampire.session.meta.events"),
 			peerID:  id,
 			msg:     message,
 			details: details,

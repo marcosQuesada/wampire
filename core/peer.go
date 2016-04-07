@@ -155,10 +155,9 @@ func (p *webSocketPeer) write(mt int, message []byte) error {
 	return p.conn.WriteMessage(mt, message)
 }
 
-/*
-	Internal Peer Concept
-	To be used as callee from local procedures
-*/
+/*****************************************************************
+ Internal Peer is used as callee from local registered procedures
+******************************************************************/
 type internalPeer struct {
 	receive chan Message
 }
@@ -182,5 +181,5 @@ func (p *internalPeer) ID() PeerID {
 }
 
 func (p *internalPeer) Terminate() {
-
+	close(p.receive)
 }

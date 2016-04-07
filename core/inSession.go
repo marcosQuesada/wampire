@@ -21,6 +21,7 @@ func newInSession() *inSession {
 
 func (i *inSession) help(msg Message) (Message, error) {
 	inv := msg.(*Invocation)
+	
 	return &Yield{
 		Request:   inv.Request,
 		Arguments: []interface{}{"help-okiDoki"},

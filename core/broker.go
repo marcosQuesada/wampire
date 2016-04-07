@@ -21,13 +21,13 @@ type defaultBroker struct {
 	metaEvents    *SessionMetaEventHandler
 }
 
-func NewBroker(m *SessionMetaEventHandler) *defaultBroker {
+func NewBroker(smeh *SessionMetaEventHandler) *defaultBroker {
 	b := &defaultBroker{
 		topics:        make(map[Topic]map[ID]bool),
 		subscriptions: make(map[ID]*Session),
 		topicPeers:    make(map[Topic]map[PeerID]ID),
 		mutex:         &sync.RWMutex{},
-		metaEvents:    m,
+		metaEvents:    smeh,
 	}
 
 	// intialize session meta event topic
@@ -50,8 +50,7 @@ func (b *defaultBroker) Subscribe(msg Message, s *Session) Message {
 		panic("Unexpected type on subscribe")
 	}
 
-	_, ok = b.topics[subscribe.Topic]
-	if !ok {
+	if _, ok = b.topics[subscribe.Topic];!ok {
 		//create topic!
 		b.topics[subscribe.Topic] = make(map[ID]bool)
 		b.topicPeers[subscribe.Topic] = make(map[PeerID]ID)
@@ -156,8 +155,8 @@ func (b *defaultBroker) UnSubscribe(msg Message, s *Session) Message {
 }
 
 func (b *defaultBroker) Publish(msg Message, p *Session) Message {
-	b.mutex.Lock()
-	defer b.mutex.Unlock()
+	b.mutex.RLock()
+	defer b.mutex.RUnlock()
 
 	publish, ok := msg.(*Publish)
 	if !ok {
@@ -184,7 +183,6 @@ func (b *defaultBroker) Publish(msg Message, p *Session) Message {
 		}
 
 		if peer.ID() != p.ID() {
-			//  Publish to all topic subscriptors as event
 			if publish.Options == nil {
 				publish.Options = map[string]interface{}{}
 			}
@@ -217,31 +215,26 @@ func (b *defaultBroker) Handlers() map[URI]Handler {
 
 func (b *defaultBroker) listSubscribers(msg Message) (Message, error) {
 	b.mutex.RLock()
-	subscriptions := b.subscriptions
-	b.mutex.RUnlock()
+	defer b.mutex.RUnlock()
 
 	subs := map[string]interface{}{}
-	for id, s := range subscriptions {
+	for id, s := range b.subscriptions {
 		subs[fmt.Sprintf("%d", id)] = s.ID()
 	}
 	inv := msg.(*Invocation)
-	kw := map[string]interface{}{
-		"subscriptions": subs,
-	}
 
 	return &Yield{
 		Request:     inv.Request,
-		ArgumentsKw: kw,
+		ArgumentsKw: map[string]interface{}{"subscriptions": subs},
 	}, nil
 }
 
 func (b *defaultBroker) listTopics(msg Message) (Message, error) {
 	b.mutex.RLock()
-	topics := b.topics
-	b.mutex.RUnlock()
+	defer b.mutex.RUnlock()
 
 	topicList := []interface{}{}
-	for topic, _ := range topics {
+	for topic, _ := range b.topics {
 		topicList = append(topicList, topic)
 	}
 
@@ -258,18 +251,20 @@ func (b *defaultBroker) listTopics(msg Message) (Message, error) {
 
 func (b *defaultBroker) countSubscribers(msg Message) (Message, error) {
 	b.mutex.RLock()
-	subscriptions := b.subscriptions
-	b.mutex.RUnlock()
+	defer b.mutex.RUnlock()
 
 	inv := msg.(*Invocation)
 
 	return &Yield{
 		Request:   inv.Request,
-		Arguments: []interface{}{len(subscriptions)},
+		Arguments: []interface{}{len(b.subscriptions)},
 	}, nil
 }
 
 func (b *defaultBroker) listTopicSubscriptions(msg Message) (Message, error) {
+	b.mutex.RLock()
+	defer b.mutex.RUnlock()
+
 	inv := msg.(*Invocation)
 	log.Println("Getting session ", inv.Arguments)
 	if len(inv.Arguments) < 1 {
@@ -278,19 +273,17 @@ func (b *defaultBroker) listTopicSubscriptions(msg Message) (Message, error) {
 		return nil, fmt.Errorf(error)
 	}
 	topic := Topic(inv.Arguments[0].(string))
-	b.mutex.RLock()
 	subscribers, ok := b.topics[topic]
-	subscriptions := b.subscriptions
-	b.mutex.RUnlock()
 	if !ok {
 		uri := fmt.Sprintf("Topic %s not found", topic)
 		log.Println(uri, uri)
 
 		return nil, fmt.Errorf("%s")
 	}
+
 	list := []interface{}{}
 	for id, _ := range subscribers {
-		s, ok := subscriptions[id]
+		s, ok := b.subscriptions[id]
 		if !ok {
 			uri := fmt.Sprintf("Topic %s Subscriptior %d not found", topic, id)
 			log.Println(uri, uri)

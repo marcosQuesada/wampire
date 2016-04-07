@@ -67,15 +67,17 @@ Where:
    ```bash
     wampire.session.meta.events
     ```
-  Supported updates:
+  Session updates:
     *wampire.session.on_join
     *wampire.session.on_leave
+  Broker updates:  
     *wampire.subscription.on_create
     *wampire.subscription.on_subscribe"
     *wampire.subscription.on_unsubscribe"
     *wampire.subscription.on_delete
-    *wampire.subscription.on_register
-    *wampire.subscription.on_unregister
+  Dealer Updates:
+    *wampire.registration.on_register
+    *wampire.registration.on_unregister
     
 ## Examples
  Let's interact between CLI and HTML clients.

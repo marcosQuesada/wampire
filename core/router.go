@@ -33,6 +33,7 @@ func NewRouter() *Router {
 		metaEvents:      m,
 	}
 
+	// Handle Session Meta Events
 	go m.consumeMetaEvents(r)
 
 	// Register in session procedures

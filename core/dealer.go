@@ -22,7 +22,7 @@ type defaultDealer struct {
 	reqListeners    *RequestListener
 	mutex           *sync.RWMutex
 	metaEvents      *SessionMetaEventHandler
-	//currentTasks: make(map[ID]Message //@TODO: Register active Calls to enable Cancel
+	currentTasks    map[ID]chan struct{}
 }
 
 func NewDealer(m *SessionMetaEventHandler) *defaultDealer {
@@ -32,6 +32,7 @@ func NewDealer(m *SessionMetaEventHandler) *defaultDealer {
 		mutex:           &sync.RWMutex{},
 		reqListeners:    NewRequestListener(),
 		metaEvents:      m,
+		currentTasks:    make(map[ID]chan struct{}),
 	}
 
 	return d
@@ -56,7 +57,7 @@ func (d *defaultDealer) Register(msg Message, s *Session) Message {
 	s.addRegistration(id, register.Procedure)
 	d.metaEvents.fireMetaEvents(
 		s.ID(),
-		URI("wampire.subscription.on_register"),
+		URI("wampire.registration.on_register"),
 		map[string]interface{}{},
 	)
 
@@ -109,7 +110,7 @@ func (d *defaultDealer) Unregister(msg Message, s *Session) Message {
 
 	d.metaEvents.fireMetaEvents(
 		s.ID(),
-		URI("wampire.subscription.on_unregister"),
+		URI("wampire.registration.on_unregister"),
 		map[string]interface{}{},
 	)
 
@@ -148,7 +149,7 @@ func (d *defaultDealer) Call(msg Message, s *Session) Message {
 	log.Println("Invocation Request is ", call.Request, "origin peer ", s.ID())
 	calleeSession, ok := d.registrations[registration]
 	if !ok {
-		uri := "Registration not foun"
+		uri := "Registration not found "
 		log.Print(uri, msg.MsgType())
 		return &Error{
 			Error: URI(uri),
