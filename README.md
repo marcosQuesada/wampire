@@ -62,6 +62,21 @@ Where:
    * CALL uri arguments
    * EXIT (or Ctl+C)
 
+## Session Meta Events
+  Server publishes session updates on an special topic: 
+   ```bash
+    wampire.session.meta.events
+    ```
+  Supported updates:
+    *wampire.session.on_join
+    *wampire.session.on_leave
+    *wampire.subscription.on_create
+    *wampire.subscription.on_subscribe"
+    *wampire.subscription.on_unsubscribe"
+    *wampire.subscription.on_delete
+    *wampire.subscription.on_register
+    *wampire.subscription.on_unregister
+    
 ## Examples
  Let's interact between CLI and HTML clients.
  ###Subscribe both clients to the same topic and talk between them

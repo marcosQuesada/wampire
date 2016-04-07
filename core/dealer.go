@@ -56,7 +56,7 @@ func (d *defaultDealer) Register(msg Message, s *Session) Message {
 	s.addRegistration(id, register.Procedure)
 	d.metaEvents.fireMetaEvents(
 		s.ID(),
-		URI("wamp.subscription.on_register"),
+		URI("wampire.subscription.on_register"),
 		map[string]interface{}{},
 	)
 
@@ -109,7 +109,7 @@ func (d *defaultDealer) Unregister(msg Message, s *Session) Message {
 
 	d.metaEvents.fireMetaEvents(
 		s.ID(),
-		URI("wamp.subscription.on_unregister"),
+		URI("wampire.subscription.on_unregister"),
 		map[string]interface{}{},
 	)
 

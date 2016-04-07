@@ -58,7 +58,7 @@ func (b *defaultBroker) Subscribe(msg Message, s *Session) Message {
 
 		b.metaEvents.fireMetaEvents(
 			s.ID(),
-			URI("wamp.subscription.on_create"),
+			URI("wampire.subscription.on_create"),
 			map[string]interface{}{},
 		)
 	}
@@ -80,7 +80,7 @@ func (b *defaultBroker) Subscribe(msg Message, s *Session) Message {
 	s.addSubscription(subscriptionId, subscribe.Topic)
 	b.metaEvents.fireMetaEvents(
 		s.ID(),
-		URI("wamp.subscription.on_subscribe"),
+		URI("wampire.subscription.on_subscribe"),
 		map[string]interface{}{},
 	)
 
@@ -140,13 +140,13 @@ func (b *defaultBroker) UnSubscribe(msg Message, s *Session) Message {
 		delete(b.topicPeers, topic)
 		b.metaEvents.fireMetaEvents(
 			session.ID(),
-			URI("wamp.subscription.on_delete"),
+			URI("wampire.subscription.on_delete"),
 			map[string]interface{}{},
 		)
 	}
 	b.metaEvents.fireMetaEvents(
 		session.ID(),
-		URI("wamp.subscription.on_unsubscribe"),
+		URI("wampire.subscription.on_unsubscribe"),
 		map[string]interface{}{},
 	)
 
