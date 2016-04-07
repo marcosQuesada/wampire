@@ -78,6 +78,7 @@ func (s *Session) do(i *Invocation) error {
 	if err != nil {
 		return err
 	}
+
 	s.Send(response)
 
 	return nil

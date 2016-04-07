@@ -2,6 +2,7 @@ package core
 
 import (
 	"log"
+	"github.com/socialpoint/sprocket/pkg/dumper"
 )
 
 type inSession struct {
@@ -15,13 +16,14 @@ func newInSession() *inSession {
 		session: internalSession,
 		done:    make(chan struct{}),
 	}
+	//go i.readLoop()
 
 	return i
 }
 
 func (i *inSession) help(msg Message) (Message, error) {
 	inv := msg.(*Invocation)
-	
+
 	return &Yield{
 		Request:   inv.Request,
 		Arguments: []interface{}{"help-okiDoki"},
@@ -63,7 +65,11 @@ func (i *inSession) readLoop() {
 	for {
 		select {
 		case msg := <-i.session.Receive():
-			log.Println("internal client session receive ", msg.MsgType(), i.session.ID())
+			log.Println(msg.MsgType())
+			dumper.B(msg)
+			if err, ok := msg.(*Error); ok {
+				log.Println("Received error is ", err.Error)
+			}
 		case <-i.done:
 			return
 		}

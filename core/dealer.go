@@ -7,11 +7,11 @@ import (
 )
 
 type Dealer interface {
-	Register(Message, *Session) Message
-	Unregister(Message, *Session) Message
-	Call(Message, *Session) Message
-	Yield(Message, *Session) Message
-	Cancel(Message, *Session) Message
+	Register(Message, *Session)
+	Unregister(Message, *Session)
+	Call(Message, *Session)
+	Yield(Message, *Session)
+	Cancel(Message, *Session)
 	RegisterSessionHandlers(map[URI]Handler, *inSession)
 	Handlers() map[URI]Handler
 }
@@ -38,17 +38,21 @@ func NewDealer(m *SessionMetaEventHandler) *defaultDealer {
 	return d
 }
 
-func (d *defaultDealer) Register(msg Message, s *Session) Message {
+func (d *defaultDealer) Register(msg Message, s *Session) {
 	log.Println("Register invoked ", msg.(*Register).Procedure)
 	d.mutex.Lock()
 	defer d.mutex.Unlock()
+
+
 	register := msg.(*Register)
 	if _, ok := d.sessionHandlers[register.Procedure]; ok {
 		uri := fmt.Sprintf("%s handler already registered ", register.Procedure)
-		return &Error{
+		response := &Error{
 			Request: register.Request,
 			Error:   URI(uri),
 		}
+		s.Send(response)
+		return
 	}
 
 	id := NewId()
@@ -61,13 +65,17 @@ func (d *defaultDealer) Register(msg Message, s *Session) Message {
 		map[string]interface{}{},
 	)
 
-	return &Registered{
+	if s.ID() == PeerID("internal") {
+		return
+	}
+	response := &Registered{
 		Request:      register.Request,
 		Registration: id,
 	}
+	s.Send(response)
 }
 
-func (d *defaultDealer) Unregister(msg Message, s *Session) Message {
+func (d *defaultDealer) Unregister(msg Message, s *Session) {
 	d.mutex.Lock()
 	defer d.mutex.Unlock()
 	unregister := msg.(*Unregister)
@@ -75,30 +83,36 @@ func (d *defaultDealer) Unregister(msg Message, s *Session) Message {
 	if !ok {
 		uri := fmt.Sprintf("%d handler not registered ", unregister.Request)
 		log.Println(uri)
-		return &Error{
+		response := &Error{
 			Request: unregister.Request,
 			Error:   URI(uri),
 		}
+		s.Send(response)
+		return
 	}
 
 	uri, err := s.uriFromRegistration(unregister.Registration)
 	if err != nil {
 		uri := fmt.Sprintf("%d handler not found on Session ", unregister.Registration)
 		log.Println(uri)
-		return &Error{
+		response := &Error{
 			Request: unregister.Request,
 			Error:   URI(uri),
 		}
+		s.Send(response)
+		return
 	}
 
 	_, ok = d.sessionHandlers[uri]
 	if !ok {
 		uri := fmt.Sprintf("%d peerHandlers not found  %s", unregister.Registration, uri)
 		log.Println(uri)
-		return &Error{
+		response := &Error{
 			Request: unregister.Request,
 			Error:   URI(uri),
 		}
+		s.Send(response)
+		return
 	}
 
 	//delete uri s
@@ -114,18 +128,21 @@ func (d *defaultDealer) Unregister(msg Message, s *Session) Message {
 		map[string]interface{}{},
 	)
 
-	return &Unregistered{
+	response := &Unregistered{
 		Request: unregister.Request,
 	}
+	s.Send(response)
 }
 
-func (d *defaultDealer) Call(msg Message, s *Session) Message {
+func (d *defaultDealer) Call(msg Message, s *Session) {
 	if msg.MsgType() != CALL {
 		uri := "Unexpected message type on Call"
 		log.Print(uri, msg.MsgType())
-		return &Error{
+		response := &Error{
 			Error: URI(uri),
 		}
+		s.Send(response)
+		return
 	}
 
 	call := msg.(*Call)
@@ -133,9 +150,11 @@ func (d *defaultDealer) Call(msg Message, s *Session) Message {
 	if !ok {
 		uri := "Registration not found on sessionHandlers"
 		log.Print(uri, msg.MsgType())
-		return &Error{
+		response := &Error{
 			Error: URI(uri),
 		}
+		s.Send(response)
+		return
 	}
 	// Forward as invocation to peer calleee
 	invocation := &Invocation{
@@ -151,57 +170,63 @@ func (d *defaultDealer) Call(msg Message, s *Session) Message {
 	if !ok {
 		uri := "Registration not found "
 		log.Print(uri, msg.MsgType())
-		return &Error{
+		response := &Error{
 			Error: URI(uri),
 		}
+		s.Send(response)
+		return
 	}
 
 	err := calleeSession.do(invocation)
 	if err != nil {
 		log.Println("Error calleeSession do", err, invocation)
-		return &Error{
+		response := &Error{
 			Error: URI("Pending to develop"),
 		}
+		s.Send(response)
+		return
 	}
 
 	y, err := d.reqListeners.RegisterAndWait(invocation.Request)
 	if err != nil {
 		log.Println("Error waiting response ", err, msg)
-		return &Error{
+		response := &Error{
 			Error: URI("Pending to develop"),
 		}
+		s.Send(response)
+		return
 	}
 
 	yield := y.(*Yield)
 
-	return &Result{
+	response := &Result{
 		Request:     yield.Request,
 		Details:     yield.Options,
 		Arguments:   yield.Arguments,
 		ArgumentsKw: yield.ArgumentsKw,
 	}
+	s.Send(response)
 }
 
-func (d *defaultDealer) Yield(msg Message, p *Session) Message {
+func (d *defaultDealer) Yield(msg Message, s *Session){
 	externalResult := msg.(*Yield)
 	d.reqListeners.Notify(msg, externalResult.Request)
 
-	return nil
+	return
 }
 
-func (d *defaultDealer) Cancel(msg Message, p *Session) Message {
+func (d *defaultDealer) Cancel(msg Message, s *Session) {
 	// @TODO: How to cancel a job in progress?
-	return &Error{
+	response := &Error{
 		Error: URI("Pending to develop"),
 	}
+
+	s.Send(response)
 }
 
 func (d *defaultDealer) RegisterSessionHandlers(handlers map[URI]Handler, s *inSession) {
 	for uri, h := range handlers {
-		msg := d.Register(&Register{Request: NewId(), Procedure: uri}, s.session)
-		if msg.MsgType() != REGISTERED {
-			log.Println("InSession Error registerig ", uri)
-		}
+		d.Register(&Register{Request: NewId(), Procedure: uri}, s.session)
 		err := s.session.register(uri, h)
 		if err != nil {
 			log.Println("InSession Error registerig ", uri)

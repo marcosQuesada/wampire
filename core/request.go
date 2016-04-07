@@ -13,20 +13,21 @@ const TIMEOUT = time.Second * 1
 type RequestListener struct {
 	listeners map[ID]chan Message
 	timeout   time.Duration
-	mutex     sync.Mutex
+	mutex     *sync.Mutex
 }
 
 func NewRequestListener() *RequestListener {
 	return &RequestListener{
 		listeners: make(map[ID]chan Message, 0),
 		timeout:   TIMEOUT,
-		mutex:     sync.Mutex{},
+		mutex:     &sync.Mutex{},
 	}
 }
 
 func (r *RequestListener) Register(requestID ID) {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
+
 	r.listeners[requestID] = make(chan Message, 1)
 }
 
@@ -48,7 +49,7 @@ func (r *RequestListener) Wait(requestID ID) (msg Message, err error) {
 	if !ok {
 		return nil, fmt.Errorf("unknown listener ID: %v", requestID)
 	} else {
-		var timeout *time.Timer = time.NewTimer(time.Second * 1)
+		timeout := time.NewTimer(time.Second * 1)
 		select {
 		case msg = <-waitChannel:
 			timeout.Stop()

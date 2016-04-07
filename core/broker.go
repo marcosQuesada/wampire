@@ -7,9 +7,9 @@ import (
 )
 
 type Broker interface {
-	Subscribe(Message, *Session) Message
-	UnSubscribe(Message, *Session) Message
-	Publish(Message, *Session) Message
+	Subscribe(Message, *Session)
+	UnSubscribe(Message, *Session)
+	Publish(Message, *Session)
 	Handlers() map[URI]Handler
 }
 
@@ -39,7 +39,7 @@ func NewBroker(smeh *SessionMetaEventHandler) *defaultBroker {
 	return b
 }
 
-func (b *defaultBroker) Subscribe(msg Message, s *Session) Message {
+func (b *defaultBroker) Subscribe(msg Message, s *Session){
 	b.mutex.Lock()
 	defer b.mutex.Unlock()
 
@@ -65,9 +65,11 @@ func (b *defaultBroker) Subscribe(msg Message, s *Session) Message {
 	//check if subscriptor is already register to topic
 	if subs, ok := b.topicPeers[subscribe.Topic][s.ID()]; ok {
 		log.Println("Session already subscribed on subscription ", subs)
-		return &Error{
+		response := &Error{
 			Error: URI("Peer already subscribed on subscription"),
 		}
+		s.Send(response)
+		return
 	}
 
 	subscriptionId := NewId()
@@ -83,13 +85,14 @@ func (b *defaultBroker) Subscribe(msg Message, s *Session) Message {
 		map[string]interface{}{},
 	)
 
-	return &Subscribed{
+	response := &Subscribed{
 		Request:      subscribe.Request,
 		Subscription: subscriptionId,
 	}
+	s.Send(response)
 }
 
-func (b *defaultBroker) UnSubscribe(msg Message, s *Session) Message {
+func (b *defaultBroker) UnSubscribe(msg Message, s *Session) {
 	b.mutex.Lock()
 	defer b.mutex.Unlock()
 
@@ -104,10 +107,12 @@ func (b *defaultBroker) UnSubscribe(msg Message, s *Session) Message {
 		uri := "topic not found to this Subscription"
 		log.Println(uri, unsubscribe)
 
-		return &Error{
+		response := &Error{
 			Request: unsubscribe.Request,
 			Error:   URI(uri),
 		}
+		s.Send(response)
+		return
 	}
 
 	session, ok := b.subscriptions[unsubscribe.Subscription]
@@ -115,10 +120,12 @@ func (b *defaultBroker) UnSubscribe(msg Message, s *Session) Message {
 		uri := "peer not found to this Subscription"
 		log.Println(uri, unsubscribe)
 
-		return &Error{
+		response := &Error{
 			Request: unsubscribe.Request,
 			Error:   URI(uri),
 		}
+		s.Send(response)
+		return
 	}
 
 	//Remove session subscription
@@ -149,12 +156,14 @@ func (b *defaultBroker) UnSubscribe(msg Message, s *Session) Message {
 		map[string]interface{}{},
 	)
 
-	return &Unsubscribed{
+	response := &Unsubscribed{
 		Request: unsubscribe.Request,
 	}
+
+	s.Send(response)
 }
 
-func (b *defaultBroker) Publish(msg Message, p *Session) Message {
+func (b *defaultBroker) Publish(msg Message, s *Session) {
 	b.mutex.RLock()
 	defer b.mutex.RUnlock()
 
@@ -168,21 +177,23 @@ func (b *defaultBroker) Publish(msg Message, p *Session) Message {
 		uri := "Topic not found"
 		log.Println(uri, publish)
 
-		return &Error{
+		response := &Error{
 			Request: publish.Request,
 			Error:   URI(uri),
 		}
+		s.Send(response)
+		return
 	}
 	//iterate on topic subscribers
 	for subscriptionId, _ := range subscribers {
 		//find peer from subscriber
-		peer, ok := b.subscriptions[subscriptionId]
+		session, ok := b.subscriptions[subscriptionId]
 		if !ok {
 			log.Println("Peer not found")
 			continue
 		}
 
-		if peer.ID() != p.ID() {
+		if session.ID() != s.ID() {
 			if publish.Options == nil {
 				publish.Options = map[string]interface{}{}
 			}
@@ -195,13 +206,14 @@ func (b *defaultBroker) Publish(msg Message, p *Session) Message {
 				ArgumentsKw:  publish.ArgumentsKw,
 			}
 			//send message in a non blocking way
-			go peer.Send(event)
+			go session.Send(event)
 		}
 	}
 
-	return &Published{
+	response := &Published{
 		Request: publish.Request,
 	}
+	s.Send(response)
 }
 
 func (b *defaultBroker) Handlers() map[URI]Handler {
@@ -262,9 +274,6 @@ func (b *defaultBroker) countSubscribers(msg Message) (Message, error) {
 }
 
 func (b *defaultBroker) listTopicSubscriptions(msg Message) (Message, error) {
-	b.mutex.RLock()
-	defer b.mutex.RUnlock()
-
 	inv := msg.(*Invocation)
 	log.Println("Getting session ", inv.Arguments)
 	if len(inv.Arguments) < 1 {
@@ -273,7 +282,9 @@ func (b *defaultBroker) listTopicSubscriptions(msg Message) (Message, error) {
 		return nil, fmt.Errorf(error)
 	}
 	topic := Topic(inv.Arguments[0].(string))
+	b.mutex.RLock()
 	subscribers, ok := b.topics[topic]
+	b.mutex.RUnlock()
 	if !ok {
 		uri := fmt.Sprintf("Topic %s not found", topic)
 		log.Println(uri, uri)
@@ -283,7 +294,9 @@ func (b *defaultBroker) listTopicSubscriptions(msg Message) (Message, error) {
 
 	list := []interface{}{}
 	for id, _ := range subscribers {
+		b.mutex.RLock()
 		s, ok := b.subscriptions[id]
+		b.mutex.RUnlock()
 		if !ok {
 			uri := fmt.Sprintf("Topic %s Subscriptior %d not found", topic, id)
 			log.Println(uri, uri)

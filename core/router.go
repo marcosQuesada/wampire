@@ -145,51 +145,44 @@ func (r *Router) handleSession(s *Session) {
 				return
 			}
 
-			var response Message
 			switch msg.(type) {
 			case *Goodbye:
 				log.Println("Received Goodbye, exit handle session")
 				return
 			case *Publish:
 				log.Println("Received Publish on topic ", msg.(*Publish).Topic)
-				response = r.Broker.Publish(msg, s)
+				go r.Broker.Publish(msg, s)
 			case *Subscribe:
 				log.Println("Received Subscribe", msg.(*Subscribe).Topic)
-				response = r.Broker.Subscribe(msg, s)
+				go r.Broker.Subscribe(msg, s)
 			case *Unsubscribe:
 				log.Println("Received Unubscribe")
-				response = r.Broker.UnSubscribe(msg, s)
+				go r.Broker.UnSubscribe(msg, s)
 			case *Call:
 				log.Println("Received Call ", msg.(*Call).Procedure)
-				response = r.Dealer.Call(msg, s)
+				go r.Dealer.Call(msg, s)
 			case *Cancel:
 				log.Println("Received Cancel, forward this to requester on dealer ")
-				r.Dealer.Cancel(msg, s)
+				go r.Dealer.Cancel(msg, s)
 			case *Yield:
 				log.Println("Received Yield, forward this to dealer ", msg.(*Yield))
-				r.Dealer.Yield(msg, s)
-
-			//@TODO: Communication between wamp nodes
-			case *Invocation:
-				log.Println("Received Invocation, execute on callee")
-			//	r.dealer.Invocation(msg, p)
-			case *Result:
-				log.Println("Received Result, Unexpected message on wamp router")
-
+				go r.Dealer.Yield(msg, s)
 			case *Register:
 				log.Println("Received Register ", msg.(*Register).Procedure)
-				response = r.Dealer.Register(msg, s)
+				go r.Dealer.Register(msg, s)
 			case *Unregister:
 				log.Println("Received Unregister")
-				response = r.Dealer.Unregister(msg, s)
+				go r.Dealer.Unregister(msg, s)
+
+			//[WIP] Unexpected messages
+			case *Invocation:
+				log.Println("Received Invocation, execute on callee")
+			case *Result:
+				log.Println("Received Result, Unexpected message on wamp router")
+			case *Published:
+				// response from Internal Peer DO Nothing
 			default:
 				log.Println("Session unhandled message ", msg.MsgType())
-				response = &Error{
-					Error: URI(fmt.Sprintf("Session unhandled message &d", msg.MsgType())),
-				}
-			}
-			if response != nil {
-				s.Send(response)
 			}
 		case <-r.exit:
 			log.Println("Shutting down session handler from peer ", s.ID())
