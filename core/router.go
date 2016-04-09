@@ -92,12 +92,14 @@ func (r *DefaultRouter) Accept(p Peer) error {
 }
 
 func (r *DefaultRouter) Terminate() {
+	r.metaEvents.Terminate()
 	close(r.exit)
+	log.Println("Router terminated!")
 
 	//wait until all handleSession has finished
 	<-r.waitUntilVoid()
-	log.Println("Router terminated!")
-	r.metaEvents.Terminate()
+	time.Sleep(time.Millisecond * 200)
+
 }
 
 func (r *DefaultRouter) SetAuthenticator(a Authenticator) {
@@ -130,7 +132,8 @@ func (r *DefaultRouter) handleSession(s *Session) {
 		for sid, topic := range s.subscriptions {
 			log.Printf("Unsubscribe sid %d on topic %s \n", sid, topic)
 			u := &Unsubscribe{Request: NewId(), Subscription: sid}
-			r.Broker.UnSubscribe(u, s)
+			go r.Broker.UnSubscribe(u, s)
+			time.Sleep(time.Second)
 		}
 		// Fire on_leave Session Meta Event
 		r.metaEvents.Fire(s.ID(), URI("wampire.session.on_leave"), map[string]interface{}{})
@@ -204,7 +207,7 @@ func (r *DefaultRouter) register(p *Session) error {
 	if _, ok := r.sessions[p.ID()]; ok {
 		return fmt.Errorf("Peer %s already registered", p.ID())
 	}
-
+	log.Println("registering ", p.ID())
 	r.sessions[p.ID()] = p
 
 	return nil
@@ -219,7 +222,7 @@ func (r *DefaultRouter) unRegister(p *Session) error {
 	}
 
 	delete(r.sessions, p.ID())
-
+	log.Println("unregistering ", p.ID())
 	return nil
 }
 
