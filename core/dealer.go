@@ -21,11 +21,11 @@ type defaultDealer struct {
 	registrations   map[ID]*Session // handler registrations from session callees
 	reqListeners    *RequestListener
 	mutex           *sync.RWMutex
-	metaEvents      *SessionMetaEventHandler
+	metaEvents      SessionMetaEventHandler
 	currentTasks    map[ID]chan struct{}
 }
 
-func NewDealer(m *SessionMetaEventHandler) *defaultDealer {
+func NewDealer(m SessionMetaEventHandler) *defaultDealer {
 	d := &defaultDealer{
 		sessionHandlers: make(map[URI]ID),
 		registrations:   make(map[ID]*Session),
@@ -39,10 +39,9 @@ func NewDealer(m *SessionMetaEventHandler) *defaultDealer {
 }
 
 func (d *defaultDealer) Register(msg Message, s *Session) {
-	log.Println("Register invoked ", msg.(*Register).Procedure)
+	log.Println("Register procedure: ", msg.(*Register).Procedure)
 	d.mutex.Lock()
 	defer d.mutex.Unlock()
-
 
 	register := msg.(*Register)
 	if _, ok := d.sessionHandlers[register.Procedure]; ok {
@@ -59,7 +58,7 @@ func (d *defaultDealer) Register(msg Message, s *Session) {
 	d.registrations[id] = s
 	d.sessionHandlers[register.Procedure] = id
 	s.addRegistration(id, register.Procedure)
-	d.metaEvents.fireMetaEvents(
+	d.metaEvents.Fire(
 		s.ID(),
 		URI("wampire.registration.on_register"),
 		map[string]interface{}{},
@@ -122,7 +121,7 @@ func (d *defaultDealer) Unregister(msg Message, s *Session) {
 	//unregister uri from session
 	s.unregister(uri)
 
-	d.metaEvents.fireMetaEvents(
+	d.metaEvents.Fire(
 		s.ID(),
 		URI("wampire.registration.on_unregister"),
 		map[string]interface{}{},
@@ -208,7 +207,7 @@ func (d *defaultDealer) Call(msg Message, s *Session) {
 	s.Send(response)
 }
 
-func (d *defaultDealer) Yield(msg Message, s *Session){
+func (d *defaultDealer) Yield(msg Message, s *Session) {
 	externalResult := msg.(*Yield)
 	d.reqListeners.Notify(msg, externalResult.Request)
 

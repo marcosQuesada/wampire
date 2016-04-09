@@ -18,10 +18,10 @@ type defaultBroker struct {
 	subscriptions map[ID]*Session         //a peer may have many subscriptions
 	topicPeers    map[Topic]map[PeerID]ID //maps peers by topic on subscription
 	mutex         *sync.RWMutex
-	metaEvents    *SessionMetaEventHandler
+	metaEvents    SessionMetaEventHandler
 }
 
-func NewBroker(smeh *SessionMetaEventHandler) *defaultBroker {
+func NewBroker(smeh SessionMetaEventHandler) *defaultBroker {
 	b := &defaultBroker{
 		topics:        make(map[Topic]map[ID]bool),
 		subscriptions: make(map[ID]*Session),
@@ -39,7 +39,7 @@ func NewBroker(smeh *SessionMetaEventHandler) *defaultBroker {
 	return b
 }
 
-func (b *defaultBroker) Subscribe(msg Message, s *Session){
+func (b *defaultBroker) Subscribe(msg Message, s *Session) {
 	b.mutex.Lock()
 	defer b.mutex.Unlock()
 
@@ -50,12 +50,12 @@ func (b *defaultBroker) Subscribe(msg Message, s *Session){
 		panic("Unexpected type on subscribe")
 	}
 
-	if _, ok = b.topics[subscribe.Topic];!ok {
+	if _, ok = b.topics[subscribe.Topic]; !ok {
 		//create topic!
 		b.topics[subscribe.Topic] = make(map[ID]bool)
 		b.topicPeers[subscribe.Topic] = make(map[PeerID]ID)
 
-		b.metaEvents.fireMetaEvents(
+		b.metaEvents.Fire(
 			s.ID(),
 			URI("wampire.subscription.on_create"),
 			map[string]interface{}{},
@@ -79,7 +79,7 @@ func (b *defaultBroker) Subscribe(msg Message, s *Session){
 
 	// Add subscription to session
 	s.addSubscription(subscriptionId, subscribe.Topic)
-	b.metaEvents.fireMetaEvents(
+	b.metaEvents.Fire(
 		s.ID(),
 		URI("wampire.subscription.on_subscribe"),
 		map[string]interface{}{},
@@ -144,13 +144,13 @@ func (b *defaultBroker) UnSubscribe(msg Message, s *Session) {
 	//if void topic remove it
 	if len(b.topicPeers[topic]) == 0 && topic != Topic("wampire.session.meta.events") {
 		delete(b.topicPeers, topic)
-		b.metaEvents.fireMetaEvents(
+		b.metaEvents.Fire(
 			session.ID(),
 			URI("wampire.subscription.on_delete"),
 			map[string]interface{}{},
 		)
 	}
-	b.metaEvents.fireMetaEvents(
+	b.metaEvents.Fire(
 		session.ID(),
 		URI("wampire.subscription.on_unsubscribe"),
 		map[string]interface{}{},

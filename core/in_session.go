@@ -1,24 +1,17 @@
 package core
 
-import (
-	"log"
-	"github.com/socialpoint/sprocket/pkg/dumper"
-)
-
 type inSession struct {
 	session *Session
-	done    chan struct{}
 }
 
 func newInSession() *inSession {
-	internalSession := NewSession(NewInternalPeer())
-	i := &inSession{
-		session: internalSession,
-		done:    make(chan struct{}),
+	return &inSession{
+		session: newInternalSession(),
 	}
-	//go i.readLoop()
+}
 
-	return i
+func newInternalSession() *Session {
+	return NewSession(NewInternalPeer())
 }
 
 func (i *inSession) help(msg Message) (Message, error) {
@@ -59,23 +52,4 @@ func (i *inSession) Handlers() map[URI]Handler {
 		"wampire.core.list": i.list,
 		"wampire.core.echo": i.echo,
 	}
-}
-
-func (i *inSession) readLoop() {
-	for {
-		select {
-		case msg := <-i.session.Receive():
-			log.Println(msg.MsgType())
-			dumper.B(msg)
-			if err, ok := msg.(*Error); ok {
-				log.Println("Received error is ", err.Error)
-			}
-		case <-i.done:
-			return
-		}
-	}
-}
-
-func (i *inSession) exit() {
-	close(i.done)
 }

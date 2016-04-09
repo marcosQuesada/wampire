@@ -36,7 +36,7 @@ type webSocketPeer struct {
 
 func NewWebsockerPeer(conn *websocket.Conn, mode string) *webSocketPeer {
 	p := &webSocketPeer{
-		serializer: &JsonSerializer{},
+		serializer: NewJSONSerializer(),
 		receive:    make(chan Message),
 		send:       make(chan Message),
 		exit:       make(chan struct{}),

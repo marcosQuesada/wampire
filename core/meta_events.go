@@ -12,21 +12,27 @@ type MetaEvent struct {
 	details map[string]interface{}
 }
 
-type SessionMetaEventHandler struct {
+type SessionMetaEventHandler interface {
+	Fire(PeerID, URI, map[string]interface{})
+	Consume(r *DefaultRouter)
+	Terminate()
+}
+
+type defaultSessionMetaEventHandler struct {
 	metaEvents chan *MetaEvent
 	done       chan struct{}
 	mutex      *sync.Mutex
 }
 
-func NewSessionMetaEventsHandler() *SessionMetaEventHandler {
-	return &SessionMetaEventHandler{
+func NewSessionMetaEventsHandler() *defaultSessionMetaEventHandler {
+	return &defaultSessionMetaEventHandler{
 		metaEvents: make(chan *MetaEvent),
 		done:       make(chan struct{}),
 		mutex:      &sync.Mutex{},
 	}
 }
 
-func (s *SessionMetaEventHandler) fireMetaEvents(id PeerID, message URI, details map[string]interface{}) {
+func (s *defaultSessionMetaEventHandler) Fire(id PeerID, message URI, details map[string]interface{}) {
 	//Fire on_join Session Meta Event only if is not the internal peer
 	if id == PeerID("internal") {
 		return
@@ -42,7 +48,7 @@ func (s *SessionMetaEventHandler) fireMetaEvents(id PeerID, message URI, details
 	}()
 }
 
-func (s *SessionMetaEventHandler) consumeMetaEvents(r *Router) {
+func (s *defaultSessionMetaEventHandler) Consume(r *DefaultRouter) {
 	defer log.Println("Closed fireMetaEvents Loop")
 	for {
 		select {
@@ -58,6 +64,7 @@ func (s *SessionMetaEventHandler) consumeMetaEvents(r *Router) {
 					Options: map[string]interface{}{
 						"session_id":  mec.peerID,
 						"acknowledge": true,
+						"details":     mec.details,
 					},
 					Arguments: []interface{}{
 						map[string]interface{}{"message": mec.msg},
@@ -69,3 +76,14 @@ func (s *SessionMetaEventHandler) consumeMetaEvents(r *Router) {
 		}
 	}
 }
+
+func (s *defaultSessionMetaEventHandler) Terminate() {
+	close(s.done)
+}
+
+/** Fake Session Meta Events Handler to be used as Stub **/
+type fakeSessionMetaEventsHandler struct{}
+
+func (*fakeSessionMetaEventsHandler) Fire(PeerID, URI, map[string]interface{}) {}
+func (*fakeSessionMetaEventsHandler) Consume(r *DefaultRouter)                 {}
+func (*fakeSessionMetaEventsHandler) Terminate()                               {}

@@ -6,43 +6,45 @@ import (
 	"time"
 )
 
-func TestDealerCallOnInternalPeer(t *testing.T) {
-	m := &SessionMetaEventHandler{
-		metaEvents: make(chan *MetaEvent, 10),
-	}
+func TestDealerCallBasicFlowOnInternalPeerInvocation(t *testing.T) {
+	m := &fakeSessionMetaEventsHandler{}
 	d := NewDealer(m)
-	fp := NewFakePeer(PeerID("123"))
-	s := NewSession(fp)
-	go sessionLoop(s)
+	sessionA := NewSession(NewFakePeer(PeerID("123")))
+	done := make(chan struct{})
+	//go sessionLoop(sessionA, done)
 
 	i := NewInternalPeer()
 	si := NewSession(i)
 
 	// Consume internal session Receive channel
-	go func(exp *Session) {
+	go func(exp *Session, exit chan struct{}) {
 		for {
 			select {
 			case msg := <-exp.Receive():
-				d.Yield(msg, s)
+				go d.Yield(msg, sessionA)
+			case <-exit:
+				return
 			}
 		}
-	}(si)
+	}(si, done)
 
 	uri := URI("foo")
 	err := si.register(uri, fooHandler)
 	if err != nil {
 		t.Error("Unexpected error registering handler", err)
 	}
-	msg := d.Register(&Register{Request: ID(123), Procedure: uri}, si)
-	if msg.MsgType() != REGISTERED {
-		t.Error("Unexpected Register response ", msg.MsgType())
-	}
+
+	d.Register(&Register{Request: ID(123), Procedure: uri}, si)
 
 	//give enough time to register handler
 	time.Sleep(time.Millisecond * 200)
 
+	var registration ID
+	for r, _ := range si.registrations {
+		registration = r
+	}
 	// check uri for registration on session
-	registeredUri, err := si.uriFromRegistration(msg.(*Registered).Registration)
+	registeredUri, err := si.uriFromRegistration(registration)
 	if err != nil {
 		t.Error("Error looking up uriFromRegistration ", err)
 	}
@@ -57,7 +59,9 @@ func TestDealerCallOnInternalPeer(t *testing.T) {
 		Procedure: URI("foo"),
 		Arguments: []interface{}{"bar", 1},
 	}
-	rsp := d.Call(call, s)
+	d.Call(call, sessionA)
+
+	rsp := <-sessionA.Receive()
 	if rsp.MsgType() == ERROR {
 		t.Error("Error executing Call ", rsp.(*Error).Error)
 		return
@@ -72,22 +76,15 @@ func TestDealerCallOnInternalPeer(t *testing.T) {
 		t.Error("Unexpected Arguments Result response")
 	}
 	log.Println("Response ", response)
-}
 
-func sessionLoop(s *Session) {
-	for {
-		select {
-		case msg := <-s.Receive():
-			log.Println("client session receive ", msg.MsgType(), s.ID())
-		}
-	}
+	close(done)
 }
 
 // A peer requests Register its own handler as a regular uri
 // when someone calls this uri forwards call to uri peer owner,
 // handle result and forward it to requester peer
-
 func fooHandler(msg Message) (Message, error) {
+	log.Println("Called")
 	inv := msg.(*Invocation)
 	return &Yield{
 		Request:   inv.Request,

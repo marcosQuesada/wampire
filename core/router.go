@@ -7,7 +7,13 @@ import (
 	"time"
 )
 
-type Router struct {
+type Router interface {
+	Accept(p Peer) error
+	Terminate()
+	SetAuthenticator(a Authenticator)
+}
+
+type DefaultRouter struct {
 	sessions map[PeerID]*Session
 	Broker
 	Dealer
@@ -15,15 +21,15 @@ type Router struct {
 	mutex           *sync.RWMutex
 	auth            Authenticator
 	internalSession *inSession
-	metaEvents      *SessionMetaEventHandler
+	metaEvents      SessionMetaEventHandler
 }
 
 type Authenticator func(Message) bool
 
-func NewRouter() *Router {
+func NewRouter() *DefaultRouter {
 	internalSession := newInSession()
 	m := NewSessionMetaEventsHandler()
-	r := &Router{
+	r := &DefaultRouter{
 		sessions:        make(map[PeerID]*Session),
 		Broker:          NewBroker(m),
 		Dealer:          NewDealer(m),
@@ -34,7 +40,7 @@ func NewRouter() *Router {
 	}
 
 	// Handle Session Meta Events
-	go m.consumeMetaEvents(r)
+	go m.Consume(r)
 
 	// Register in session procedures
 	r.Dealer.RegisterSessionHandlers(internalSession.Handlers(), internalSession)
@@ -48,7 +54,7 @@ func NewRouter() *Router {
 	return r
 }
 
-func (r *Router) Accept(p Peer) error {
+func (r *DefaultRouter) Accept(p Peer) error {
 	timeout := time.NewTimer(time.Second * 1)
 	select {
 	case rcvMessage := <-p.Receive():
@@ -85,20 +91,20 @@ func (r *Router) Accept(p Peer) error {
 	}
 }
 
-func (r *Router) Terminate() {
+func (r *DefaultRouter) Terminate() {
 	close(r.exit)
 
 	//wait until all handleSession has finished
 	<-r.waitUntilVoid()
 	log.Println("Router terminated!")
-	close(r.metaEvents.done)
+	r.metaEvents.Terminate()
 }
 
-func (r *Router) SetAuthenticator(a Authenticator) {
+func (r *DefaultRouter) SetAuthenticator(a Authenticator) {
 	r.auth = a
 }
 
-func (r *Router) authenticate(msg Message) (Message, bool, error) {
+func (r *DefaultRouter) authenticate(msg Message) (Message, bool, error) {
 	var auth bool = true
 	if r.auth != nil {
 		auth = r.auth(msg)
@@ -117,7 +123,7 @@ func (r *Router) authenticate(msg Message) (Message, bool, error) {
 	}, true, nil
 }
 
-func (r *Router) handleSession(s *Session) {
+func (r *DefaultRouter) handleSession(s *Session) {
 	defer func() {
 		log.Println("Exit session handler from peer ", s.ID())
 		// remove session subscriptions
@@ -127,7 +133,7 @@ func (r *Router) handleSession(s *Session) {
 			r.Broker.UnSubscribe(u, s)
 		}
 		// Fire on_leave Session Meta Event
-		r.metaEvents.fireMetaEvents(s.ID(), URI("wampire.session.on_leave"), map[string]interface{}{})
+		r.metaEvents.Fire(s.ID(), URI("wampire.session.on_leave"), map[string]interface{}{})
 		//unregister session from router
 		r.unRegister(s)
 		//exit session
@@ -135,7 +141,7 @@ func (r *Router) handleSession(s *Session) {
 	}()
 
 	//Fire on_join Session Meta Event
-	r.metaEvents.fireMetaEvents(s.ID(), URI("wampire.session.on_join"), map[string]interface{}{})
+	r.metaEvents.Fire(s.ID(), URI("wampire.session.on_join"), map[string]interface{}{})
 
 	for {
 		select {
@@ -191,7 +197,7 @@ func (r *Router) handleSession(s *Session) {
 	}
 }
 
-func (r *Router) register(p *Session) error {
+func (r *DefaultRouter) register(p *Session) error {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 
@@ -204,7 +210,7 @@ func (r *Router) register(p *Session) error {
 	return nil
 }
 
-func (r *Router) unRegister(p *Session) error {
+func (r *DefaultRouter) unRegister(p *Session) error {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 
@@ -218,7 +224,7 @@ func (r *Router) unRegister(p *Session) error {
 }
 
 // waitUntilVoid: waits until all sessions are closed
-func (r *Router) waitUntilVoid() chan struct{} {
+func (r *DefaultRouter) waitUntilVoid() chan struct{} {
 	void := make(chan struct{})
 	go func() {
 		for {
@@ -236,85 +242,7 @@ func (r *Router) waitUntilVoid() chan struct{} {
 	return void
 }
 
-func (r *Router) Handlers() map[URI]Handler {
-	return map[URI]Handler{
-		"wampire.session.list":  r.listSessions,
-		"wampire.session.count": r.countSessions,
-		"wampire.session.get":   r.getSession,
-	}
-}
-
-func (r *Router) listSessions(msg Message) (Message, error) {
-	r.mutex.RLock()
-	sessions := r.sessions
-	r.mutex.RUnlock()
-	list := []interface{}{}
-	for peerId, _ := range sessions {
-		list = append(list, peerId)
-	}
-
-	inv := msg.(*Invocation)
-
-	return &Yield{
-		Request:   inv.Request,
-		Arguments: list,
-	}, nil
-
-}
-
-func (r *Router) countSessions(msg Message) (Message, error) {
-	r.mutex.RLock()
-	sessions := r.sessions
-	r.mutex.RUnlock()
-	inv := msg.(*Invocation)
-
-	return &Yield{
-		Request:   inv.Request,
-		Arguments: []interface{}{len(sessions)},
-	}, nil
-}
-
-func (r *Router) getSession(msg Message) (Message, error) {
-	r.mutex.RLock()
-	sessions := r.sessions
-	r.mutex.RUnlock()
-	inv := msg.(*Invocation)
-	log.Println("Getting session ", inv.Arguments)
-	if len(inv.Arguments) < 1 {
-		error := "Void ID argument on get session"
-		log.Println(error)
-		return nil, fmt.Errorf(error)
-	}
-
-	s, ok := sessions[PeerID(inv.Arguments[0].(string))]
-	log.Println("Getting session ", inv.Arguments, "ok:", ok, s)
-	if !ok {
-		error := "Router session ID %d not found "
-		log.Println(error)
-		return nil, fmt.Errorf(error)
-	}
-
-	subs := map[string]interface{}{}
-	for id, topic := range s.getSubscriptions() {
-		subs[fmt.Sprintf("%d", id)] = topic
-	}
-	regs := map[string]interface{}{}
-	for id, uri := range s.getRegistrations() {
-		regs[fmt.Sprintf("%d", id)] = uri
-	}
-	kw := map[string]interface{}{
-		"subscriptions": subs,
-		"registrations": regs,
-		"initTs":        s.initTs,
-	}
-
-	return &Yield{
-		Request:     inv.Request,
-		ArgumentsKw: kw,
-	}, nil
-}
-
-func (r *Router) defaultDetails() map[string]interface{} {
+func (r *DefaultRouter) defaultDetails() map[string]interface{} {
 	return map[string]interface{}{
 		"roles": map[string]interface{}{
 			"publisher": map[string]interface{}{

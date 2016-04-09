@@ -6,11 +6,11 @@ import (
 
 func TestJsonSerializer(t *testing.T) {
 	msg := &Hello{
-		Realm: URI("fooRealm"),
+		Realm:   URI("fooRealm"),
 		Details: map[string]interface{}{"foo": "bar"},
 	}
 
-	s := &JsonSerializer{}
+	s := NewJSONSerializer()
 	data, err := s.Serialize(msg)
 	if err != nil {
 		t.Error("Unexpected error serializing ", err)
@@ -25,9 +25,9 @@ func TestJsonSerializer(t *testing.T) {
 	switch rcvMessage.(type) {
 	case *Hello:
 		h := rcvMessage.(*Hello)
-/*		if msg.Id != h.Id {
-			t.Error("Message Ids don't match", msg.Id, h.Id)
-		}*/
+		/*		if msg.Id != h.Id {
+				t.Error("Message Ids don't match", msg.Id, h.Id)
+			}*/
 
 		if "bar" != h.Details["foo"] {
 			t.Error("Message Payload don't match")
@@ -37,21 +37,18 @@ func TestJsonSerializer(t *testing.T) {
 	}
 }
 
-func TestWellEncodedHelloMessage(t *testing.T) {
-	// [HELLO, Details|dict]
-	// [WELCOME, Session|id, Details|dict]
-	// [ABORT, Details|dict, Reason|uri]
-	// [ERROR, REQUEST.Type|int, REQUEST.Request|id, Details|dict, Error|uri]
-	// [PUBLISH, Request|id, Options|dict, Topic|uri]
-}
-
+// [HELLO, Details|dict]
+// [WELCOME, Session|id, Details|dict]
+// [ABORT, Details|dict, Reason|uri]
+// [ERROR, REQUEST.Type|int, REQUEST.Request|id, Details|dict, Error|uri]
+// [PUBLISH, Request|id, Options|dict, Topic|uri]
 func TestMessageToList(t *testing.T) {
 	hello := &Hello{
-		Realm: URI("fooUri"),
-		Details: map[string]interface{}{"foo":"bar"},
+		Realm:   URI("fooUri"),
+		Details: map[string]interface{}{"foo": "bar"},
 	}
-	s := &JsonSerializer{}
-	l := s.toList(hello)
+	e := &defaultEncoder{}
+	l := e.ToList(hello)
 
 	if len(l) != 3 {
 		t.Errorf("Unexpected encoded message to list")
@@ -76,11 +73,11 @@ func TestMessageToList(t *testing.T) {
 
 func TestListToMessage(t *testing.T) {
 	list := []interface{}{
-		float64(1), URI("foo"), map[string]interface{}{"foo":"bar"},
+		float64(1), URI("foo"), map[string]interface{}{"foo": "bar"},
 	}
-	s := &JsonSerializer{}
-	hl, err := s.toMessage(list)
-	if err!= nil {
+	e := &defaultEncoder{}
+	hl, err := e.ToMessage(list)
+	if err != nil {
 		t.Error("Error converting to message ", err)
 	}
 
@@ -93,7 +90,7 @@ func TestListToMessage(t *testing.T) {
 		t.Error("Unexpected message Realm")
 	}
 
-	if h.Details["foo"].(string) != "bar"{
+	if h.Details["foo"].(string) != "bar" {
 		t.Error("Unexpected message Details")
 	}
 }
@@ -101,11 +98,11 @@ func TestListToMessage(t *testing.T) {
 func TestListToMessageOnVoidFields(t *testing.T) {
 	//[48,2332246451159040,{},"com.example.add2",[2,3]]
 	list := []interface{}{
-		float64(48), 2332246451159040, map[string]interface{}{}, URI("com.example.add2"),[]interface{}{2,3},
+		float64(48), 2332246451159040, map[string]interface{}{}, URI("com.example.add2"), []interface{}{2, 3},
 	}
-	s := &JsonSerializer{}
-	hl, err := s.toMessage(list)
-	if err!= nil {
+	e := &defaultEncoder{}
+	hl, err := e.ToMessage(list)
+	if err != nil {
 		t.Error("Error converting to message ", err)
 	}
 
@@ -118,18 +115,18 @@ func TestListToMessageOnVoidFields(t *testing.T) {
 		t.Error("Unexpected message Request ", c.Request)
 	}
 
-	if c.Procedure !=  URI("com.example.add2"){
+	if c.Procedure != URI("com.example.add2") {
 		t.Error("Unexpected message Details")
 	}
 
-	if len(c.Arguments) !=  2{
+	if len(c.Arguments) != 2 {
 		t.Error("Unexpected message Arguments")
 	}
 
-	if c.Arguments[0] !=  2{
+	if c.Arguments[0] != 2 {
 		t.Error("Unexpected message Arguments")
 	}
-	if c.Arguments[1] !=  3{
+	if c.Arguments[1] != 3 {
 		t.Error("Unexpected message Arguments")
 	}
 }

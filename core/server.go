@@ -3,19 +3,20 @@ package core
 import (
 	"fmt"
 	"github.com/gorilla/mux"
+	"github.com/gorilla/websocket"
 	"log"
 	"net"
 	"net/http"
 	"os"
 	"time"
-"github.com/gorilla/websocket"
 )
 
 type Server struct {
-	port   int
-	router *Router
+	port          int
+	router        *DefaultRouter
 	httpCientPath string
 }
+
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:  4096,
 	WriteBufferSize: 4096,
@@ -29,8 +30,8 @@ func NewServer(port int) *Server {
 	router := NewRouter()
 
 	return &Server{
-		port:   port,
-		router: router,
+		port:          port,
+		router:        router,
 		httpCientPath: "",
 	}
 }
@@ -65,7 +66,7 @@ func (s *Server) Run() {
 func (s *Server) Terminate() {
 	s.router.Terminate()
 	time.Sleep(time.Millisecond * 200)
-	// Quick and dirty way to stop http.Serve!
+	//@TODO: Quick and dirty way to stop http.Serve!
 	os.Exit(0)
 }
 

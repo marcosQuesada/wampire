@@ -5,44 +5,45 @@ import (
 )
 
 func TestBrokerPublish(t *testing.T) {
-	m := &SessionMetaEventHandler{
-		metaEvents: make(chan *MetaEvent, 10),
-	}
+	// Mocked MetaEventsChannel
+	m := &fakeSessionMetaEventsHandler{}
 	b := NewBroker(m)
-	fpp := NewFakePeer(PeerID("123"))
-	s := NewSession(fpp)
 
-	subs := &Subscribe{Request:ID(123), Topic: Topic("foo")}
-	r := b.Subscribe(subs, s)
+	sessionA := NewSession(NewFakePeer(PeerID("PeerA")))
+	sessionB := NewSession(NewFakePeer(PeerID("PeerB")))
 
+	// Subscribe Session A on Topic foo
+	subs := &Subscribe{Request: ID(123), Topic: Topic("foo")}
+	b.Subscribe(subs, sessionA)
+	r := <-sessionA.Receive()
 	if r.MsgType() != SUBSCRIBED {
-		t.Error("Error subscribing")
+		t.Error("Error subscribing ", r.MsgType())
 	}
 
-	fpp2 := NewFakePeer(PeerID("1234"))
-	fp2 := NewSession(fpp2)
+	// Subscribe Session B on Topic foo
+	subs = &Subscribe{Request: ID(1234), Topic: Topic("foo")}
+	b.Subscribe(subs, sessionB)
+	r = <-sessionB.Receive()
+	if r.MsgType() != SUBSCRIBED {
+		t.Error("Error subscribing ", r.MsgType())
+	}
 
-	subs = &Subscribe{Request:ID(1234), Topic: Topic("foo")}
-	b.Subscribe(subs, fp2)
-
-	b.Publish(&Publish{Request:ID(9999), Topic:Topic("foo")}, s)
-
-	answ := <- fpp2.snd
-	if answ.MsgType() != EVENT {
-		t.Error("Unexpected publish type ", answ.MsgType())
+	// Session A Publish on Topic foo
+	b.Publish(&Publish{Request: ID(9999), Topic: Topic("foo")}, sessionA)
+	r = <-sessionB.Receive()
+	if r.MsgType() != EVENT {
+		t.Error("Unexpected publish type ", r.MsgType())
 	}
 }
 
 func TestBrokerSubscribe(t *testing.T) {
-	m := &SessionMetaEventHandler{
-		metaEvents: make(chan *MetaEvent, 10),
-	}
+	m := &fakeSessionMetaEventsHandler{}
 	b := NewBroker(m)
 	s := NewSession(NewFakePeer(PeerID("123")))
 
-	subs := &Subscribe{Request:ID(123), Topic: Topic("foo")}
-	r := b.Subscribe(subs, s)
-
+	subs := &Subscribe{Request: ID(123), Topic: Topic("foo")}
+	b.Subscribe(subs, s)
+	r := <-s.Receive()
 	if r.MsgType() != SUBSCRIBED {
 		t.Error("Error subscribing")
 	}
@@ -70,7 +71,7 @@ func TestBrokerSubscribe(t *testing.T) {
 
 	// assert Session subscription
 	topic, ok := s.subscriptions[subsRes.Subscription]
-	if  !ok {
+	if !ok {
 		t.Error("Session topic subscription not found")
 	}
 
@@ -81,21 +82,21 @@ func TestBrokerSubscribe(t *testing.T) {
 }
 
 func TestBrokerUnSubscribe(t *testing.T) {
-	m := &SessionMetaEventHandler{
-		metaEvents: make(chan *MetaEvent, 10),
-	}
+	m := &fakeSessionMetaEventsHandler{}
 	b := NewBroker(m)
 	s := NewSession(NewFakePeer(PeerID("123")))
 
-	subs := &Subscribe{Request:ID(123), Topic: Topic("foo")}
-	r := b.Subscribe(subs, s)
+	subs := &Subscribe{Request: ID(123), Topic: Topic("foo")}
+	b.Subscribe(subs, s)
+	r := <-s.Receive()
 
 	if r.MsgType() != SUBSCRIBED {
 		t.Error("Error subscribing")
 	}
 	subsRes := r.(*Subscribed)
-	unSubs := &Unsubscribe{Request:ID(123), Subscription: subsRes.Subscription}
-	ru := b.UnSubscribe(unSubs, s)
+	unSubs := &Unsubscribe{Request: ID(123), Subscription: subsRes.Subscription}
+	b.UnSubscribe(unSubs, s)
+	ru := <-s.Receive()
 	if ru.MsgType() != UNSUBSCRIBED {
 		t.Error("Error unsubscribing", ru.MsgType())
 	}
@@ -120,7 +121,7 @@ func TestBrokerUnSubscribe(t *testing.T) {
 
 	// assert Session unSubscription
 	_, ok := s.subscriptions[subsRes.Subscription]
-	if  ok {
+	if ok {
 		t.Error("Session topic subscription not found")
 	}
 }

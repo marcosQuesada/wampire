@@ -85,8 +85,6 @@ func (s *Session) do(i *Invocation) error {
 }
 
 func (s *Session) addRegistration(id ID, uri URI) error {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
 	if _, ok := s.registrations[id]; ok {
 		return fmt.Errorf("%s registrations already registered on URI %s", id, uri)
 	}
@@ -96,8 +94,6 @@ func (s *Session) addRegistration(id ID, uri URI) error {
 }
 
 func (s *Session) removeRegistration(id ID) error {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
 	if _, ok := s.registrations[id]; !ok {
 		return fmt.Errorf("%s subscription not found", id)
 	}

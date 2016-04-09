@@ -12,25 +12,28 @@ type Serializer interface {
 	Deserialize([]byte) (Message, error)
 }
 
-type nopSerializer struct{}
-
-func (s *nopSerializer) Serialize(m Message) []byte {
-	return nil
+type Encoder interface {
+	ToMessage([]interface{}) (Message, error)
+	ToList(Message) []interface{}
 }
 
-func (s *nopSerializer) Deserialize(m []byte) Message {
-	return nil
+type JSONSerializer struct{
+	Encoder
 }
 
-type JsonSerializer struct{}
+func NewJSONSerializer() *JSONSerializer {
+	return &JSONSerializer{
+		Encoder: &defaultEncoder{},
+	}
+}
 
-func (s *JsonSerializer) Serialize(m Message) ([]byte, error) {
-	payload := s.toList(m)
+func (s *JSONSerializer) Serialize(m Message) ([]byte, error) {
+	payload := s.ToList(m)
 
 	return json.Marshal(payload)
 }
 
-func (s *JsonSerializer) Deserialize(data []byte) (Message, error) {
+func (s *JSONSerializer) Deserialize(data []byte) (Message, error) {
 	payload := []interface{}{}
 	err := json.Unmarshal(data, &payload)
 	if err != nil {
@@ -40,10 +43,11 @@ func (s *JsonSerializer) Deserialize(data []byte) (Message, error) {
 		panic(payload)
 	}
 
-	return s.toMessage(payload)
+	return s.ToMessage(payload)
 }
 
-func (s *JsonSerializer) toList(msg Message) []interface{} {
+type defaultEncoder struct{}
+func (e *defaultEncoder) ToList(msg Message) []interface{} {
 	ret := []interface{}{int(msg.MsgType())}
 	val := reflect.ValueOf(msg).Elem()
 
@@ -59,9 +63,7 @@ func (s *JsonSerializer) toList(msg Message) []interface{} {
 	return ret
 }
 
-// @TODO: It's just handling void fields on the final part of the messages
-// what's about void fields in the middle of the message??
-func (s *JsonSerializer) toMessage(l []interface{}) (Message, error) {
+func (e *defaultEncoder) ToMessage(l []interface{}) (Message, error) {
 	msgType := MsgType(int(l[0].(float64)))
 	msg := msgType.NewMessage()
 	if msg == nil {
