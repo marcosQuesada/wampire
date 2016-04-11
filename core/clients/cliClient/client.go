@@ -199,7 +199,7 @@ func (c *cliClient) printTableFromList(key string, values []interface{}) {
 	table := tablewriter.NewWriter(os.Stdout)
 	table.SetHeader([]string{key, "value"})
 	for _, v := range values {
-		entry := []string{key, fmt.Sprintf("%s", v)}
+		entry := []string{key, fmt.Sprintf("%d", v)}
 		table.Append(entry)
 	}
 	table.Render()
@@ -212,7 +212,8 @@ func (c *cliClient) printTableFromMap(m map[string]interface{}) {
 		table := tablewriter.NewWriter(os.Stdout)
 		if values, ok := samples.(map[string]interface{}); ok {
 			for key, value := range values {
-				entry := []string{fmt.Sprintf("%s", key), fmt.Sprintf("%s", value)}
+				stringValue := fmt.Sprintf("%s", value)
+				entry := []string{fmt.Sprintf("%s", key), stringValue}
 				table.Append(entry)
 			}
 			if len(values) != 0 {

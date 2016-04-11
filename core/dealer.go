@@ -167,7 +167,7 @@ func (d *defaultDealer) Call(msg Message, s *Session) {
 		ArgumentsKw:  call.ArgumentsKw,
 	}
 
-	log.Println("Invocation Request is ", call.Request, "origin peer ", s.ID())
+	log.Println("Invocation:", call.Procedure, "Request is ", call.Request, "origin peer ", s.ID())
 	calleeSession, ok := d.registrations[registration]
 	if !ok {
 		uri := "Registration not found "

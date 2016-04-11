@@ -3,7 +3,8 @@ package core
 import (
 	"github.com/nu7hatch/gouuid"
 	"log"
-	"sync/atomic"
+	"math/rand"
+	"time"
 )
 
 // https://tools.ietf.org/html/draft-oberstet-hybi-tavendo-wamp-02
@@ -38,13 +39,12 @@ const (
 type ID uint64
 type PeerID string
 
-// atomic counter as message IDs
-var lastId uint64 = 0
+func init(){
+	rand.Seed(time.Now().Unix())
+}
 
 func NewId() ID {
-	atomic.AddUint64(&lastId, 1)
-
-	return ID(atomic.LoadUint64(&lastId))
+	return ID(rand.Int63())
 }
 
 func NewStringId() PeerID {
