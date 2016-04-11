@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"sync"
+	"time"
 )
 
 type Dealer interface {
@@ -22,7 +23,7 @@ type defaultDealer struct {
 	reqListeners    *RequestListener
 	mutex           *sync.RWMutex
 	metaEvents      SessionMetaEventHandler
-	currentTasks    map[ID]chan struct{}
+	activeTasks     map[ID]chan struct{}
 }
 
 func NewDealer(m SessionMetaEventHandler) *defaultDealer {
@@ -32,7 +33,7 @@ func NewDealer(m SessionMetaEventHandler) *defaultDealer {
 		mutex:           &sync.RWMutex{},
 		reqListeners:    NewRequestListener(),
 		metaEvents:      m,
-		currentTasks:    make(map[ID]chan struct{}),
+		activeTasks:     make(map[ID]chan struct{}),
 	}
 
 	return d
@@ -134,15 +135,15 @@ func (d *defaultDealer) Unregister(msg Message, s *Session) {
 }
 
 func (d *defaultDealer) Call(msg Message, s *Session) {
-	if msg.MsgType() != CALL {
-		uri := "Unexpected message type on Call"
-		log.Print(uri, msg.MsgType())
-		response := &Error{
-			Error: URI(uri),
+	defer func() {
+		// remove task from active tasks map
+		if _, ok := d.activeTasks[msg.(*Call).Request];ok{
+			d.mutex.Lock()
+			log.Println("Remove invocation request ", msg.(*Call).Request)
+			delete(d.activeTasks, msg.(*Call).Request)
+			d.mutex.Unlock()
 		}
-		s.Send(response)
-		return
-	}
+	}()
 
 	call := msg.(*Call)
 	registration, ok := d.sessionHandlers[call.Procedure]
@@ -155,6 +156,7 @@ func (d *defaultDealer) Call(msg Message, s *Session) {
 		s.Send(response)
 		return
 	}
+
 	// Forward as invocation to peer calleee
 	invocation := &Invocation{
 		Request:      call.Request,
@@ -175,6 +177,12 @@ func (d *defaultDealer) Call(msg Message, s *Session) {
 		s.Send(response)
 		return
 	}
+
+	// register call request in active task map
+	d.mutex.Lock()
+	log.Println("Storing invocation request ", invocation.Request)
+	d.activeTasks[invocation.Request] = make(chan struct{})
+	d.mutex.Unlock()
 
 	err := calleeSession.do(invocation)
 	if err != nil {
@@ -205,6 +213,7 @@ func (d *defaultDealer) Call(msg Message, s *Session) {
 		ArgumentsKw: yield.ArgumentsKw,
 	}
 	s.Send(response)
+
 }
 
 func (d *defaultDealer) Yield(msg Message, s *Session) {
@@ -236,6 +245,7 @@ func (d *defaultDealer) RegisterSessionHandlers(handlers map[URI]Handler, s *inS
 func (d *defaultDealer) Handlers() map[URI]Handler {
 	return map[URI]Handler{
 		"wampire.core.dealer.dump": d.dumpDealer,
+		"wampire.core.long.duration.call": d.longDurationTaks,
 	}
 }
 
@@ -263,6 +273,19 @@ func (d *defaultDealer) dumpDealer(msg Message) (Message, error) {
 	return &Yield{
 		Request:     inv.Request,
 		ArgumentsKw: kw,
+	}, nil
+
+}
+
+
+func (d *defaultDealer) longDurationTaks(msg Message) (Message, error) {
+	inv := msg.(*Invocation)
+	log.Println("Invoking long duration task")
+	time.Sleep(time.Second * 30)
+	log.Println("done long duration task")
+
+	return &Yield{
+		Request:     inv.Request,
 	}, nil
 
 }
