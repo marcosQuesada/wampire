@@ -17,6 +17,7 @@ func (r *DefaultRouter) listSessions(msg Message) (Message, error) {
 	r.mutex.RLock()
 	sessions := r.sessions
 	r.mutex.RUnlock()
+
 	list := []interface{}{}
 	for peerId, _ := range sessions {
 		list = append(list, peerId)
@@ -33,21 +34,17 @@ func (r *DefaultRouter) listSessions(msg Message) (Message, error) {
 
 func (r *DefaultRouter) countSessions(msg Message) (Message, error) {
 	r.mutex.RLock()
-	sessions := r.sessions
+	total := len(r.sessions)
 	r.mutex.RUnlock()
 	inv := msg.(*Invocation)
 
 	return &Yield{
 		Request:   inv.Request,
-		Arguments: []interface{}{len(sessions)},
+		Arguments: []interface{}{total},
 	}, nil
 }
 
 func (r *DefaultRouter) getSession(msg Message) (Message, error) {
-	r.mutex.RLock()
-	sessions := r.sessions
-	r.mutex.RUnlock()
-
 	inv := msg.(*Invocation)
 	if len(inv.Arguments) < 1 {
 		error := "Void ID argument on get session"
@@ -55,7 +52,10 @@ func (r *DefaultRouter) getSession(msg Message) (Message, error) {
 		return nil, fmt.Errorf(error)
 	}
 
-	s, ok := sessions[PeerID(inv.Arguments[0].(string))]
+	r.mutex.RLock()
+	s, ok := r.sessions[PeerID(inv.Arguments[0].(string))]
+	r.mutex.RUnlock()
+
 	if !ok {
 		error := "Router session ID %d not found "
 		log.Println(error)

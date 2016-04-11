@@ -15,12 +15,14 @@ WAMPire
 - [X] Session Meta Events
 - [ ] Challenge Response Authentication
 - [ ] WAMP advanced profile 
+- [X] Support concurrent client requests
+- [X] Cancel active Calls
 - [ ] WAMP distributed architecture 
 
 ## Features 
  * WAMP basic profile
   * Publish/Subscribe 
-  * RPC Call/Invocation/Yield/Result
+  * RPC Call/Invocation/Yield/Result/Cancel/Interrupt
  * RPC introspection tools
   * wampire.session.list: List all active sessions
   * wampire.session.count : Count all active sessions

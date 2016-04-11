@@ -176,6 +176,9 @@ func (r *DefaultRouter) handleSession(s *Session) {
 			case *Yield:
 				log.Println("Received Yield, forward this to dealer ", msg.(*Yield))
 				go r.Dealer.Yield(msg, s)
+			case *Interrupt:
+				log.Println("Received Interrupt, forward this to dealer ", msg.(*Interrupt))
+				go r.Dealer.Interrupt(msg, s)
 			case *Register:
 				log.Println("Received Register ", msg.(*Register).Procedure)
 				go r.Dealer.Register(msg, s)

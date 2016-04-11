@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"sync"
+	"time"
 )
 
 type Dealer interface {
@@ -11,6 +12,7 @@ type Dealer interface {
 	Unregister(Message, *Session)
 	Call(Message, *Session)
 	Yield(Message, *Session)
+	Interrupt(Message, *Session)
 	Cancel(Message, *Session)
 	RegisterSessionHandlers(map[URI]Handler, *inSession)
 	Handlers() map[URI]Handler
@@ -22,7 +24,7 @@ type defaultDealer struct {
 	reqListeners    *RequestListener
 	mutex           *sync.RWMutex
 	metaEvents      SessionMetaEventHandler
-	currentTasks    map[ID]chan struct{}
+	activeTasks     map[ID]chan struct{}
 }
 
 func NewDealer(m SessionMetaEventHandler) *defaultDealer {
@@ -32,7 +34,7 @@ func NewDealer(m SessionMetaEventHandler) *defaultDealer {
 		mutex:           &sync.RWMutex{},
 		reqListeners:    NewRequestListener(),
 		metaEvents:      m,
-		currentTasks:    make(map[ID]chan struct{}),
+		activeTasks:     make(map[ID]chan struct{}),
 	}
 
 	return d
@@ -134,15 +136,15 @@ func (d *defaultDealer) Unregister(msg Message, s *Session) {
 }
 
 func (d *defaultDealer) Call(msg Message, s *Session) {
-	if msg.MsgType() != CALL {
-		uri := "Unexpected message type on Call"
-		log.Print(uri, msg.MsgType())
-		response := &Error{
-			Error: URI(uri),
+	defer func() {
+		// remove task from active tasks map
+		if _, ok := d.activeTasks[msg.(*Call).Request];ok{
+			d.mutex.Lock()
+			log.Println("Remove invocation request ", msg.(*Call).Request)
+			delete(d.activeTasks, msg.(*Call).Request)
+			d.mutex.Unlock()
 		}
-		s.Send(response)
-		return
-	}
+	}()
 
 	call := msg.(*Call)
 	registration, ok := d.sessionHandlers[call.Procedure]
@@ -155,6 +157,7 @@ func (d *defaultDealer) Call(msg Message, s *Session) {
 		s.Send(response)
 		return
 	}
+
 	// Forward as invocation to peer calleee
 	invocation := &Invocation{
 		Request:      call.Request,
@@ -176,6 +179,12 @@ func (d *defaultDealer) Call(msg Message, s *Session) {
 		return
 	}
 
+	// register call request in active task map
+	d.mutex.Lock()
+	log.Println("Storing invocation request ", invocation.Request)
+	d.activeTasks[invocation.Request] = make(chan struct{})
+	d.mutex.Unlock()
+
 	err := calleeSession.do(invocation)
 	if err != nil {
 		log.Println("Error calleeSession do", err, invocation)
@@ -196,8 +205,13 @@ func (d *defaultDealer) Call(msg Message, s *Session) {
 		return
 	}
 
-	yield := y.(*Yield)
+	// handle interruptions
+	if i, ok := y.(*Interrupt); ok {
+		s.Send(i)
+		return
+	}
 
+	yield := y.(*Yield)
 	response := &Result{
 		Request:     yield.Request,
 		Details:     yield.Options,
@@ -208,6 +222,7 @@ func (d *defaultDealer) Call(msg Message, s *Session) {
 }
 
 func (d *defaultDealer) Yield(msg Message, s *Session) {
+	// @TODO: this is going to be a stopper on progressive_results
 	externalResult := msg.(*Yield)
 	d.reqListeners.Notify(msg, externalResult.Request)
 
@@ -215,12 +230,24 @@ func (d *defaultDealer) Yield(msg Message, s *Session) {
 }
 
 func (d *defaultDealer) Cancel(msg Message, s *Session) {
-	// @TODO: How to cancel a job in progress?
-	response := &Error{
-		Error: URI("Pending to develop"),
+	c := msg.(*Cancel)
+
+	log.Println("Canceling task ", c.Request)
+	closeChan, ok := d.activeTasks[c.Request]
+	if !ok {
+		log.Println("Current task not found! ",c.Request)
 	}
 
-	s.Send(response)
+	// close task channel, don't handle response here
+	close(closeChan)
+}
+
+// As cancel workaround
+func (d *defaultDealer) Interrupt(msg Message, s *Session) {
+	interrupt := msg.(*Interrupt)
+	d.reqListeners.Notify(msg, interrupt.Request)
+
+	return
 }
 
 func (d *defaultDealer) RegisterSessionHandlers(handlers map[URI]Handler, s *inSession) {
@@ -236,6 +263,8 @@ func (d *defaultDealer) RegisterSessionHandlers(handlers map[URI]Handler, s *inS
 func (d *defaultDealer) Handlers() map[URI]Handler {
 	return map[URI]Handler{
 		"wampire.core.dealer.dump": d.dumpDealer,
+		"wampire.core.long.duration.call": d.longDurationTask,
+		"wampire.core.dealer.active.tasks": d.dumpActiveTasks,
 	}
 }
 
@@ -264,5 +293,48 @@ func (d *defaultDealer) dumpDealer(msg Message) (Message, error) {
 		Request:     inv.Request,
 		ArgumentsKw: kw,
 	}, nil
+}
 
+
+func (d *defaultDealer) longDurationTask(msg Message) (Message, error) {
+	inv := msg.(*Invocation)
+	log.Println("Invoking long duration task")
+	closeChan, ok := d.activeTasks[inv.Request]
+	if !ok {
+		log.Println("Current task not found! ")
+	}
+	select{
+	case <-closeChan:
+		log.Println("Canceled task ", inv.Request)
+		return &Interrupt{
+			Request:     inv.Request,
+		}, nil
+
+	case <- time.NewTimer(time.Second * 30).C:
+		log.Println("done long duration task done")
+	}
+
+	return &Yield{
+		Request:     inv.Request,
+	}, nil
+
+}
+
+func (d *defaultDealer) dumpActiveTasks(msg Message) (Message, error) {
+	d.mutex.RLock()
+	defer d.mutex.RUnlock()
+
+	activeTasks := []interface{}{}
+	for task, _ := range d.activeTasks {
+		activeTasks = append(activeTasks, task)
+	}
+
+	inv := msg.(*Invocation)
+	kw := map[string]interface{}{
+		"tasks": activeTasks,
+	}
+	return &Yield{
+		Request:     inv.Request,
+		ArgumentsKw: kw,
+	}, nil
 }

@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 )
@@ -19,9 +20,9 @@ type clientMsgHandler func(core.Message) error
 type cliClient struct {
 	*core.Session
 
-	msgHandlers  map[core.MsgType]clientMsgHandler
-	reader       *bufio.Reader
-	done         chan struct{}
+	msgHandlers map[core.MsgType]clientMsgHandler
+	reader      *bufio.Reader
+	done        chan struct{}
 }
 
 func NewCliClient(host string) *cliClient {
@@ -36,21 +37,23 @@ func NewCliClient(host string) *cliClient {
 	peer := core.NewWebsockerPeer(conn, core.CLIENT)
 
 	c := &cliClient{
-		Session:      core.NewSession(peer),
-		reader:       bufio.NewReader(os.Stdin),
-		done:         make(chan struct{}),
+		Session: core.NewSession(peer),
+		reader:  bufio.NewReader(os.Stdin),
+		done:    make(chan struct{}),
 	}
 
 	// Declare local handlers
 	c.msgHandlers = map[core.MsgType]clientMsgHandler{
-		core.WELCOME: c.welcome,
-		core.PUBLISHED: c.published,
+		core.WELCOME:    c.welcome,
+		core.PUBLISHED:  c.published,
 		core.SUBSCRIBED: c.subscribed,
-		core.RESULT:  c.result,
-		core.EVENT:   c.event,
-		core.ERROR:   c.error,
+		core.RESULT:     c.result,
+		core.INTERRUPT:  c.interrupt,
+		core.EVENT:      c.event,
+		core.ERROR:      c.error,
 	}
 
+	// @TODO: Handle Hello details
 	realm := core.URI("fooRealm")
 	details := map[string]interface{}{"foo": "bar"}
 	c.sayHello(realm, details)
@@ -111,16 +114,31 @@ func (c *cliClient) processCli() {
 			}
 			cappedArgs := args[2:]
 			var newArgs []interface{}
-			for i:=0; i < len(cappedArgs); i++ {
+			for i := 0; i < len(cappedArgs); i++ {
 				newArgs = append(newArgs, cappedArgs[i])
 			}
 			call := &core.Call{
 				Request:   core.NewId(),
 				Procedure: core.URI(args[1]),
 				Arguments: newArgs,
-				Options: map[string]interface{}{"receive_progress":true},
+				Options:   map[string]interface{}{"receive_progress": true},
 			}
 			c.Send(call)
+		case "CANCEL":
+			if len(args) != 2 {
+				log.Println("CANCEL Void URI")
+				continue
+			}
+			id, err := strconv.ParseInt(args[1], 10, 64)
+			if err != nil {
+				log.Println("Error parsing Request ID")
+			}
+			log.Println("Canceling task ", id)
+			cancel := &core.Cancel{
+				Request: core.ID(id),
+				Options: map[string]interface{}{},
+			}
+			c.Send(cancel)
 		case "ID":
 			log.Println("I am ", c.ID())
 		case "EXIT":
@@ -233,6 +251,12 @@ func (p *cliClient) result(msg core.Message) error {
 	return nil
 }
 
+func (p *cliClient) interrupt(msg core.Message) error {
+	r := msg.(*core.Interrupt)
+	log.Printf("Interrupted Call Id: %s \n", r.Request)
+	return nil
+}
+
 func (p *cliClient) event(msg core.Message) error {
 	r := msg.(*core.Event)
 	if len(r.Arguments) > 0 {
@@ -241,7 +265,7 @@ func (p *cliClient) event(msg core.Message) error {
 			message = detailsMap["message"].(string)
 		}
 		if cid, ok := r.Details["session_id"]; ok {
-			message = fmt.Sprintf("%s id: %s",message, cid)
+			message = fmt.Sprintf("%s id: %s", message, cid)
 		}
 		log.Printf("EVENT Topic: %s Message: %s \n", r.Details["topic"], message)
 	}

@@ -103,6 +103,8 @@ func (t MsgType) NewMessage() Message {
 		return new(Event)
 	case CALL:
 		return new(Call)
+	case CANCEL:
+		return new(Cancel)
 	case RESULT:
 		return new(Result)
 	case REGISTER:
@@ -150,6 +152,8 @@ func (t MsgType) String() string {
 		return "EVENT"
 	case CALL:
 		return "CALL"
+	case CANCEL:
+		return "CANCEL"
 	case RESULT:
 		return "RESULT"
 	case REGISTER:

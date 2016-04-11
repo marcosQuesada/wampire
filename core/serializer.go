@@ -2,9 +2,9 @@ package core
 
 import (
 	"encoding/json"
-	"reflect"
 	"fmt"
 	"github.com/mitchellh/mapstructure"
+	"reflect"
 )
 
 type Serializer interface {
@@ -17,7 +17,7 @@ type Encoder interface {
 	ToList(Message) []interface{}
 }
 
-type JSONSerializer struct{
+type JSONSerializer struct {
 	Encoder
 }
 
@@ -42,11 +42,11 @@ func (s *JSONSerializer) Deserialize(data []byte) (Message, error) {
 	if len(payload) <= 1 {
 		panic(payload)
 	}
-
 	return s.ToMessage(payload)
 }
 
 type defaultEncoder struct{}
+
 func (e *defaultEncoder) ToList(msg Message) []interface{} {
 	ret := []interface{}{int(msg.MsgType())}
 	val := reflect.ValueOf(msg).Elem()
@@ -74,9 +74,9 @@ func (e *defaultEncoder) ToMessage(l []interface{}) (Message, error) {
 	nl := l[1:]
 
 	msgMap := make(map[string]interface{}, len(nl))
-	for i:=0; i < val.Type().NumField(); i++ {
+	for i := 0; i < val.Type().NumField(); i++ {
 		//On void extra fields do nothing
-		if len(nl)>i {
+		if len(nl) > i {
 			msgMap[typ.Field(i).Name] = nl[i]
 		}
 	}
