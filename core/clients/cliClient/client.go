@@ -49,6 +49,7 @@ func NewCliClient(host string) *cliClient {
 		core.SUBSCRIBED: c.subscribed,
 		core.RESULT:     c.result,
 		core.INTERRUPT:  c.interrupt,
+		core.YIELD:      c.yield,
 		core.EVENT:      c.event,
 		core.ERROR:      c.error,
 	}
@@ -123,6 +124,7 @@ func (c *cliClient) processCli() {
 				Arguments: newArgs,
 				Options:   map[string]interface{}{"receive_progress": true},
 			}
+			log.Println("Call request ", call.Request)
 			c.Send(call)
 		case "CANCEL":
 			if len(args) != 2 {
@@ -255,6 +257,13 @@ func (p *cliClient) result(msg core.Message) error {
 func (p *cliClient) interrupt(msg core.Message) error {
 	r := msg.(*core.Interrupt)
 	log.Printf("Interrupted Call Id: %s \n", r.Request)
+	return nil
+}
+
+func (p *cliClient) yield(msg core.Message) error {
+	r := msg.(*core.Yield)
+
+	log.Printf("Yield Call Id: %d Update: %d  \n", r.Request, int(r.ArgumentsKw["update"].(float64)))
 	return nil
 }
 

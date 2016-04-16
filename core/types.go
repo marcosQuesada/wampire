@@ -44,7 +44,7 @@ func init(){
 }
 
 func NewId() ID {
-	return ID(rand.Int63())
+	return ID(rand.Int31())
 }
 
 func NewStringId() PeerID {

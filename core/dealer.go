@@ -24,7 +24,7 @@ type defaultDealer struct {
 	reqListeners    *RequestListener
 	mutex           *sync.RWMutex
 	metaEvents      SessionMetaEventHandler
-	activeTasks     map[ID]chan struct{}
+	activeTasks     map[ID]*task
 }
 
 func NewDealer(m SessionMetaEventHandler) *defaultDealer {
@@ -34,7 +34,7 @@ func NewDealer(m SessionMetaEventHandler) *defaultDealer {
 		mutex:           &sync.RWMutex{},
 		reqListeners:    NewRequestListener(),
 		metaEvents:      m,
-		activeTasks:     make(map[ID]chan struct{}),
+		activeTasks:     make(map[ID]*task),
 	}
 
 	return d
@@ -136,16 +136,6 @@ func (d *defaultDealer) Unregister(msg Message, s *Session) {
 }
 
 func (d *defaultDealer) Call(msg Message, s *Session) {
-	defer func() {
-		// remove task from active tasks map
-		if _, ok := d.activeTasks[msg.(*Call).Request];ok{
-			d.mutex.Lock()
-			log.Println("Remove invocation request ", msg.(*Call).Request)
-			delete(d.activeTasks, msg.(*Call).Request)
-			d.mutex.Unlock()
-		}
-	}()
-
 	call := msg.(*Call)
 	registration, ok := d.sessionHandlers[call.Procedure]
 	if !ok {
@@ -180,72 +170,76 @@ func (d *defaultDealer) Call(msg Message, s *Session) {
 	}
 
 	// register call request in active task map
-	d.mutex.Lock()
-	log.Println("Storing invocation request ", invocation.Request)
-	d.activeTasks[invocation.Request] = make(chan struct{})
-	d.mutex.Unlock()
+	task := newTask(s, invocation.Request, call.Procedure, false)
+	d.addTask(task)
 
+	// Handle Invocation
 	err := calleeSession.do(invocation)
 	if err != nil {
 		log.Println("Error calleeSession do", err, invocation)
 		response := &Error{
-			Error: URI("Pending to develop"),
+			Error: URI("calleeSession invocation do Error"),
+			Details:map[string]interface{}{"error": err},
 		}
 		s.Send(response)
 		return
 	}
+}
 
-	y, err := d.reqListeners.RegisterAndWait(invocation.Request)
-	if err != nil {
-		log.Println("Error waiting response ", err, msg)
-		response := &Error{
-			Error: URI("Pending to develop"),
-		}
-		s.Send(response)
+func (d *defaultDealer) Yield(msg Message, s *Session) {
+	yield := msg.(*Yield)
+
+	d.mutex.RLock()
+	task, ok := d.activeTasks[yield.Request]
+	d.mutex.RUnlock()
+	if !ok {
+		log.Println("Error, task not found! ", yield.Request)
 		return
 	}
 
-	// handle interruptions
-	if i, ok := y.(*Interrupt); ok {
-		s.Send(i)
-		return
-	}
-
-	yield := y.(*Yield)
 	response := &Result{
 		Request:     yield.Request,
 		Details:     yield.Options,
 		Arguments:   yield.Arguments,
 		ArgumentsKw: yield.ArgumentsKw,
 	}
-	s.Send(response)
-}
+	task.session.Send(response)
 
-func (d *defaultDealer) Yield(msg Message, s *Session) {
-	// @TODO: this is going to be a stopper on progressive_results
-	externalResult := msg.(*Yield)
-	d.reqListeners.Notify(msg, externalResult.Request)
-
-	return
+	if !task.progressive {
+		d.removeTask(task)
+	}
 }
 
 func (d *defaultDealer) Cancel(msg Message, s *Session) {
-	c := msg.(*Cancel)
+	cancel := msg.(*Cancel)
 
-	log.Println("Canceling task ", c.Request)
-	closeChan, ok := d.activeTasks[c.Request]
+	log.Println("Canceling task ", cancel.Request)
+	task, ok := d.activeTasks[cancel.Request]
 	if !ok {
-		log.Println("Current task not found! ",c.Request)
+		log.Println("Current task not found! ", cancel.Request)
+		return
 	}
 
 	// close task channel, don't handle response here
-	close(closeChan)
+	close(task.terminate)
+
+	d.removeTask(task)
 }
 
 // As cancel workaround
 func (d *defaultDealer) Interrupt(msg Message, s *Session) {
 	interrupt := msg.(*Interrupt)
-	d.reqListeners.Notify(msg, interrupt.Request)
+
+	d.mutex.RLock()
+	task, ok := d.activeTasks[interrupt.Request]
+	d.mutex.RUnlock()
+	if !ok {
+		log.Println("Error, task not found! ", interrupt.Request)
+		return
+	}
+	task.session.Send(interrupt)
+
+	d.removeTask(task)
 
 	return
 }
@@ -262,10 +256,24 @@ func (d *defaultDealer) RegisterSessionHandlers(handlers map[URI]Handler, s *inS
 
 func (d *defaultDealer) Handlers() map[URI]Handler {
 	return map[URI]Handler{
-		"wampire.core.dealer.dump": d.dumpDealer,
-		"wampire.core.long.duration.call": d.longDurationTask,
+		"wampire.core.dealer.dump":         d.dumpDealer,
+		"wampire.core.long.duration.call":  d.longDurationTask,
 		"wampire.core.dealer.active.tasks": d.dumpActiveTasks,
 	}
+}
+
+func (d *defaultDealer) addTask(task *task) {
+	d.mutex.Lock()
+	log.Println("Add invocation request ", task.request)
+	d.activeTasks[task.request] = task
+	d.mutex.Unlock()
+}
+
+func (d *defaultDealer) removeTask(task *task) {
+	d.mutex.Lock()
+	log.Println("Remove invocation request ", task.request)
+	delete(d.activeTasks, task.request)
+	d.mutex.Unlock()
 }
 
 func (d *defaultDealer) dumpDealer(msg Message) (Message, error) {
@@ -295,29 +303,61 @@ func (d *defaultDealer) dumpDealer(msg Message) (Message, error) {
 	}, nil
 }
 
-
 func (d *defaultDealer) longDurationTask(msg Message) (Message, error) {
-	inv := msg.(*Invocation)
+	invocation := msg.(*Invocation)
 	log.Println("Invoking long duration task")
-	closeChan, ok := d.activeTasks[inv.Request]
+	task, ok := d.activeTasks[invocation.Request]
 	if !ok {
 		log.Println("Current task not found! ")
 	}
-	select{
-	case <-closeChan:
-		log.Println("Canceled task ", inv.Request)
-		return &Interrupt{
-			Request:     inv.Request,
-		}, nil
 
-	case <- time.NewTimer(time.Second * 30).C:
-		log.Println("done long duration task done")
+	updateTickerDuration := time.Second * 50
+	if v, ok := invocation.Details["receive_progress"];ok && v.(bool) {
+		updateTickerDuration = time.Second * 5
 	}
+	updateTicker := time.NewTicker(updateTickerDuration)
+	timeout := time.NewTimer(time.Second * 50)
+	loopIterations := 0
+	for {
+		select {
+		case <-task.terminate:
+			log.Println("Canceled task ", invocation.Request)
+			return &Interrupt{
+				Request: invocation.Request,
+			}, nil
+		case <-updateTicker.C:
+			loopIterations++
+			d.mutex.RLock()
+			task, ok := d.activeTasks[invocation.Request]
+			d.mutex.RUnlock()
+			if !ok {
+				log.Println("Error, task not found! ", invocation.Request)
+				continue
+			}
+			log.Println("Updating task ", invocation.Request)
+			update := &Yield{
+				Request: invocation.Request,
+				ArgumentsKw: map[string]interface{}{"update": loopIterations},
+			}
 
-	return &Yield{
-		Request:     inv.Request,
-	}, nil
+			task.session.Send(update)
+		case <-timeout.C:
+			log.Println("done long duration task done")
+			d.mutex.Lock()
+			task, ok := d.activeTasks[invocation.Request]
+			d.mutex.Unlock()
+			if !ok {
+				log.Println("Error, task not found! ", invocation.Request)
+				continue
+			}
+			task.progressive = false
 
+			return &Yield{
+				Request: invocation.Request,
+				Arguments:[]interface{}{"done 100%"},
+			}, nil
+		}
+	}
 }
 
 func (d *defaultDealer) dumpActiveTasks(msg Message) (Message, error) {
@@ -337,4 +377,22 @@ func (d *defaultDealer) dumpActiveTasks(msg Message) (Message, error) {
 		Request:     inv.Request,
 		ArgumentsKw: kw,
 	}, nil
+}
+
+type task struct {
+	session     *Session
+	request     ID
+	procedure   URI
+	progressive bool
+	terminate   chan struct{}
+}
+
+func newTask(s *Session, id ID, uri URI, p bool) *task {
+	return &task{
+		session:     s,
+		request:     id,
+		procedure:   uri,
+		progressive: p,
+		terminate:   make(chan struct{}),
+	}
 }
