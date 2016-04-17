@@ -201,7 +201,7 @@ func (c *cliClient) printTableFromList(key string, values []interface{}) {
 	table := tablewriter.NewWriter(os.Stdout)
 	table.SetHeader([]string{key, "value"})
 	for _, v := range values {
-		entry := []string{key, fmt.Sprintf("%d", v)}
+		entry := []string{key, formatRow(v)}
 		table.Append(entry)
 	}
 	table.Render()
@@ -214,7 +214,7 @@ func (c *cliClient) printTableFromMap(m map[string]interface{}) {
 		table := tablewriter.NewWriter(os.Stdout)
 		if values, ok := samples.(map[string]interface{}); ok {
 			for key, value := range values {
-				stringValue := fmt.Sprintf("%s", value)
+				stringValue := formatRow(value)
 				entry := []string{fmt.Sprintf("%s", key), stringValue}
 				table.Append(entry)
 			}
@@ -236,7 +236,8 @@ func (c *cliClient) printTableFromMap(m map[string]interface{}) {
 
 func (p *cliClient) welcome(msg core.Message) error {
 	r := msg.(*core.Welcome)
-	log.Printf("Welcome Details: %s \n", r.Details)
+	log.Println("Welcome Details")
+	p.printTableFromMap(r.Details)
 	return nil
 }
 
@@ -336,4 +337,23 @@ func main() {
 	}()
 
 	client.processCli()
+}
+
+func formatRow(v interface{}) string {
+	var row string
+	switch v.(type) {
+	case float64:
+		row = fmt.Sprintf("%d ", int(v.(float64)))
+	case string:
+		row = fmt.Sprintf("%s", v)
+	case map[string]interface{}:
+		for k, value := range v.(map[string]interface{}){
+			row = fmt.Sprintf("%s \n%s %s", row, k, formatRow(value))
+		}
+	case bool:
+		row = fmt.Sprintf("%t", v)
+	default:
+		log.Println("unhandled type ", v)
+	}
+	return row
 }
