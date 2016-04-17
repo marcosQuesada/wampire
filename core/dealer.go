@@ -364,12 +364,14 @@ func (d *defaultDealer) dumpActiveTasks(msg Message) (Message, error) {
 	d.mutex.RLock()
 	defer d.mutex.RUnlock()
 
+	inv := msg.(*Invocation)
 	activeTasks := []interface{}{}
-	for task, _ := range d.activeTasks {
-		activeTasks = append(activeTasks, task)
+	for taskID, _ := range d.activeTasks {
+		if taskID != inv.Request {
+			activeTasks = append(activeTasks, taskID)
+		}
 	}
 
-	inv := msg.(*Invocation)
 	kw := map[string]interface{}{
 		"tasks": activeTasks,
 	}
