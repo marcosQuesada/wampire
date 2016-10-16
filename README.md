@@ -246,15 +246,4 @@ Dealer Updates:
  |             4 | internal                             |
  |             6 | internal                             |
  +---------------+--------------------------------------+
- +------------------------------+-----------------+
- |       SESSION HANDLERS       |      VALUE      |
- +------------------------------+-----------------+
- | wampire.core.dealer.dump     | %!s(float64=12) |
- | wampire.core.echo            | %!s(float64=6)  |
- | wampire.core.help            | %!s(float64=2)  |
- | wampire.core.list            | %!s(float64=4)  |
- | wampire.core.router.sessions | %!s(float64=8)  |
- | io.crossbar.demo.mul2        | %!s(float64=17) |
- | wampire.core.broker.dump     | %!s(float64=10) |
- +------------------------------+-----------------+
 ```
