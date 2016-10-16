@@ -66,18 +66,23 @@ Where:
 
 ## Session Meta Events
   Server publishes session updates on an special topic: 
-   ```bash
+```bash
     wampire.session.meta.events
-    ```
-  Session updates:
+```
+Session updates:
+
     *wampire.session.on_join
     *wampire.session.on_leave
-  Broker updates:  
-    *wampire.subscription.on_create
-    *wampire.subscription.on_subscribe"
-    *wampire.subscription.on_unsubscribe"
-    *wampire.subscription.on_delete
-  Dealer Updates:
+
+Broker updates:
+
+    * wampire.subscription.on_create
+    * wampire.subscription.on_subscribe"
+    * wampire.subscription.on_unsubscribe"
+    * wampire.subscription.on_delete
+
+Dealer Updates:
+
     *wampire.registration.on_register
     *wampire.registration.on_unregister
     
