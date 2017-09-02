@@ -17,12 +17,12 @@ func TestServerConnectionHandlingAndShutDown(t *testing.T) {
 	time.Sleep(time.Millisecond * 100)
 	tstClientA := NewTestClient("localhost:8888")
 	err := tstClientA.handshake()
-	if err!=nil {
+	if err != nil {
 		t.Error("Unexpected error on testclient 1 handshake", err)
 	}
 	tstClientB := NewTestClient("localhost:8888")
 	err = tstClientB.handshake()
-	if err!=nil {
+	if err != nil {
 		t.Error("Unexpected error on testclient 1 handshake", err)
 	}
 
