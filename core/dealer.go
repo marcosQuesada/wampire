@@ -178,8 +178,8 @@ func (d *defaultDealer) Call(msg Message, s *Session) {
 	if err != nil {
 		log.Println("Error calleeSession do", err, invocation)
 		response := &Error{
-			Error: URI("calleeSession invocation do Error"),
-			Details:map[string]interface{}{"error": err},
+			Error:   URI("calleeSession invocation do Error"),
+			Details: map[string]interface{}{"error": err},
 		}
 		s.Send(response)
 		return
@@ -312,7 +312,7 @@ func (d *defaultDealer) longDurationTask(msg Message) (Message, error) {
 	}
 
 	updateTickerDuration := time.Second * 50
-	if v, ok := invocation.Details["receive_progress"];ok && v.(bool) {
+	if v, ok := invocation.Details["receive_progress"]; ok && v.(bool) {
 		updateTickerDuration = time.Second * 5
 	}
 	updateTicker := time.NewTicker(updateTickerDuration)
@@ -336,7 +336,7 @@ func (d *defaultDealer) longDurationTask(msg Message) (Message, error) {
 			}
 			log.Println("Updating task ", invocation.Request)
 			update := &Yield{
-				Request: invocation.Request,
+				Request:     invocation.Request,
 				ArgumentsKw: map[string]interface{}{"update": loopIterations},
 			}
 
@@ -353,8 +353,8 @@ func (d *defaultDealer) longDurationTask(msg Message) (Message, error) {
 			task.progressive = false
 
 			return &Yield{
-				Request: invocation.Request,
-				Arguments:[]interface{}{"done 100%"},
+				Request:   invocation.Request,
+				Arguments: []interface{}{"done 100%"},
 			}, nil
 		}
 	}

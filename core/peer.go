@@ -32,6 +32,7 @@ type webSocketPeer struct {
 	exit       chan struct{}
 	serializer Serializer
 	wg         *sync.WaitGroup
+	mutex      sync.Mutex
 }
 
 func NewWebsockerPeer(conn *websocket.Conn, mode string) *webSocketPeer {
@@ -157,6 +158,9 @@ func (p *webSocketPeer) readLoop() {
 }
 
 func (p *webSocketPeer) write(mt int, message []byte) error {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+
 	p.conn.SetWriteDeadline(time.Now().Add(writeWait))
 
 	return p.conn.WriteMessage(mt, message)

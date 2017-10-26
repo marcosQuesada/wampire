@@ -39,7 +39,7 @@ const (
 type ID uint64
 type PeerID string
 
-func init(){
+func init() {
 	rand.Seed(time.Now().Unix())
 }
 
@@ -264,7 +264,7 @@ func (msg *Abort) MsgType() MsgType {
 		"session": 1131593967612115
 	}
 }]
- */
+*/
 // [CHALLENGE, AuthMethod|string, Extra|dict]
 type Challenge struct {
 	AuthMethod string
